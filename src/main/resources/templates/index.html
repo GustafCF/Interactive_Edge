@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" th:href="@{/css/index.css}">
+</head>
+<body>
+   <!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" th:href="@{/css/index.css}">
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1 class="logo">Interactive Edge</h1>
+            <nav class="nav">
+                <a th:href="@{/}" class="nav-link">Dashboard</a>
+                <a th:href="@{/guest}" class="nav-link">Hóspedes</a>
+                <a th:href="@{/room}" class="nav-link">Quartos</a>
+                <div class="dropdown">
+                    <a class="nav-link dropdown-link">Gerenciar</a>
+                    <div class="dropdown-content">
+                        <a th:href="@{/reserve}">Reservas</a>
+                        <a th:href="@{/financas}">Finanças</a>
+                    </div>
+                </div>
+                <div class="user-info" id="userInfo">
+                    <!-- Informações do usuário serão carregadas aqui -->
+                </div>
+                <a href="#" class="nav-link" id="logoutBtn">Sair</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <div class="card">
+                <div class="dashboard-welcome">
+                    <div>
+                        <h2 class="card-title">Dashboard</h2>
+                        <p>Bem-vindo ao sistema de gerenciamento do Interactive Edge</p>
+                    </div>
+                    <div class="quick-actions">
+                        <a href="/calendario" class="btn btn-calendar">
+                            📅 Ver Calendário
+                        </a>
+                        <a href="/reserve" class="btn btn-primary">
+                            Gerenciar Reservas
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-4">
+                    <div class="card stats-card">
+                        <div class="stats-number" id="totalReserves">0</div>
+                        <div class="stats-label">Reservas Ativas</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="card stats-card">
+                        <div class="stats-number" id="availableRoomsCount">0</div>
+                        <div class="stats-label">Quartos Disponíveis</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="card stats-card">
+                        <div class="stats-number" id="occupiedRoomsCount">0</div>
+                        <div class="stats-label">Quartos Ocupados</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Reservas Ativas</h3>
+                            <a href="/reserve" class="btn btn-sm btn-primary">Ver Todas</a>
+                        </div>
+                        <div class="expandable-list collapsed" id="activeReservesContainer">
+                            <div id="activeReserves">
+                                <p>Carregando reservas...</p>
+                            </div>
+                        </div>
+                        <div class="show-all-container">
+                            <button class="btn btn-show-all" onclick="hotelSystem.toggleExpand('activeReservesContainer', this)">
+                                Mostrar Todos
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Quartos Disponíveis</h3>
+                            <a href="/room" class="btn btn-sm btn-success">Ver Quartos</a>
+                        </div>
+                        <div class="expandable-list collapsed" id="availableRoomsContainer">
+                            <div id="availableRooms">
+                                <p>Carregando quartos...</p>
+                            </div>
+                        </div>
+                        <div class="show-all-container">
+                            <button class="btn btn-show-all" onclick="hotelSystem.toggleExpand('availableRoomsContainer', this)">
+                                Mostrar Todos
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Próximos Check-ins -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Próximos Check-ins</h3>
+                    <a href="/calendario" class="btn btn-sm btn-calendar">Ver Calendário</a>
+                </div>
+                <div class="expandable-list collapsed" id="upcomingCheckinsContainer">
+                    <div id="upcomingCheckins">
+                        <p>Carregando próximos check-ins...</p>
+                    </div>
+                </div>
+                <div class="show-all-container">
+                    <button class="btn btn-show-all" onclick="hotelSystem.toggleExpand('upcomingCheckinsContainer', this)">
+                        Mostrar Todos
+                    </button>
+                </div>
+            </div>
+
+            <!-- Check-ins e Check-outs de Hoje - CORRIGIDO -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Movimentações de Hoje</h3>
+                    <span class="badge badge-vague" id="todayDate"></span>
+                </div>
+                <div class="row">
+                    <div class="col-6">
+                        <h4 style="color: var(--orange); margin-bottom: 1rem;">✅ Check-ins de Hoje</h4>
+                        <div class="expandable-list collapsed" id="todayCheckinsContainer">
+                            <div id="todayCheckins">
+                                <p>Carregando check-ins de hoje...</p>
+                            </div>
+                        </div>
+                        <div class="show-all-container">
+                            <button class="btn btn-show-all" onclick="hotelSystem.toggleExpand('todayCheckinsContainer', this)">
+                                Mostrar Todos
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <h4 style="color: var(--orange); margin-bottom: 1rem;">🚪 Check-outs de Hoje</h4>
+                        <div class="expandable-list collapsed" id="todayCheckoutsContainer">
+                            <div id="todayCheckouts">
+                                <p>Carregando check-outs de hoje...</p>
+                            </div>
+                        </div>
+                        <div class="show-all-container">
+                            <button class="btn btn-show-all" onclick="hotelSystem.toggleExpand('todayCheckoutsContainer', this)">
+                                Mostrar Todos
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p><strong>&copy; Interactive Edge System</strong></p>
+        </div>
+    </footer>
+
+    <script th:src="@{/js/index.js}"></script>
+</body>
+</html>

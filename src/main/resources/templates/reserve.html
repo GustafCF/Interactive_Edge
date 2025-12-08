@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciar Reservas</title>
+    <link rel="stylesheet" th:href="@{/css/reserve.css}">
+        <style>
+        /* Estilos adicionais específicos para melhorias visuais */
+        .search-result-item {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .guest-list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+        }
+        
+        .selected-date-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            margin-bottom: 0.25rem;
+        }
+        
+        .date-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            margin-bottom: 0.25rem;
+        }
+        
+        .guest-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+        }
+        
+        .quick-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #FF6B35;
+            margin-bottom: 0.25rem;
+        }
+        
+        .stat-label {
+            font-size: 0.8rem;
+            color: #666;
+        }
+        
+        .value-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .value-control-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .value-input {
+            flex: 1;
+        }
+        
+        .value-breakdown {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-top: 1rem;
+            border: 1px solid #e9ecef;
+        }
+        
+        .breakdown-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.25rem 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .breakdown-item:last-child {
+            border-bottom: none;
+            font-weight: bold;
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 2px solid #dee2e6;
+        }
+        
+        .dates-management {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        
+        .current-dates {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 0.5rem;
+        }
+        
+        .date-picker-group {
+            display: flex;
+            gap: 0.5rem;
+            align-items: end;
+        }
+        
+        .guest-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 0.5rem;
+        }
+        
+        @media (max-width: 768px) {
+            .value-controls {
+                grid-template-columns: 1fr;
+            }
+            
+            .dates-management {
+                grid-template-columns: 1fr;
+            }
+            
+            .quick-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Cabeçalho Padronizado -->
+    <header class="header">
+        <div class="container">
+            <h1 class="logo">Interactive Edge</h1>
+            <nav class="nav">
+                <a href="/" class="nav-link">Dashboard</a>
+                <a href="/guest" class="nav-link">Hóspedes</a>
+                <a href="/room" class="nav-link">Quartos</a>
+                <div class="dropdown">
+                    <a class="nav-link dropdown-link active">Gerenciar</a>
+                    <div class="dropdown-content">
+                        <a href="/reserve">Reservas</a>
+                        <a href="/financas">Finanças</a>
+                    </div>
+                </div>
+                <a href="/calendario" class="btn-calendar" style="display: inline-block; padding: 0.4rem 0.8rem; margin-left: 1rem;">
+                    📅 Calendário
+                </a>
+                <div class="user-info" id="userInfo">
+                    <!-- Informações do usuário serão carregadas aqui -->
+                </div>
+                <a href="#" class="nav-link" id="logoutBtn">Sair</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <!-- Cabeçalho da Página -->
+            <div class="card">
+                <div class="page-header">
+                    <div>
+                        <h2 class="card-title">Gerenciar Reservas</h2>
+                        <p>Gerencie todas as reservas Interactive Edge</p>
+                    </div>
+                    <div class="quick-actions">
+                        <button class="btn btn-primary" onclick="reservationManager.openCreateModal()">
+                            ➕ Nova Reserva
+                        </button>
+                        <!-- REMOVIDO: Botões Atualizar e Debug -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Busca de Reservas -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Buscar Reservas</h3>
+                </div>
+                <div class="form-group">
+                    <input type="text" id="searchInput" class="form-control" 
+                           placeholder="Digite o ID da reserva ou nome do hóspede...">
+                </div>
+                <div id="searchResults"></div>
+            </div>
+
+            <!-- Lista de Reservas -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Lista de Reservas</h3>
+                    <div class="quick-actions">
+                        <!-- REMOVIDO: Botão Testar Datas -->
+                    </div>
+                </div>
+                
+                <!-- Container expansível para a lista de reservas -->
+                <div class="expandable-list collapsed" id="reservationListContainer">
+                    <div id="reservationList">
+                        <div class="loading-reservations">
+                            <div class="loading-spinner"></div>
+                            Carregando reservas...
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Botão para expandir/recolher -->
+                <div class="show-all-container">
+                    <button class="btn btn-show-all" onclick="reservationManager.toggleReservationList()">
+                        Mostrar Todos
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal para Nova Reserva (FLUXO COMPLETO) -->
+    <div id="createReservationModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3 class="card-title">Nova Reserva - Fluxo de Criação</h3>
+                <span class="close" onclick="reservationManager.closeCreateModal()">&times;</span>
+            </div>
+            
+            <!-- Indicador de Passos -->
+            <div class="step-indicator">
+                <div class="step-line"></div>
+                <div class="step active" id="step1">
+                    <div class="step-number">1</div>
+                    <div class="step-label">Cadastrar Hóspedes</div>
+                </div>
+                <div class="step" id="step2">
+                    <div class="step-number">2</div>
+                    <div class="step-label">Selecionar Quarto</div>
+                </div>
+                <div class="step" id="step3">
+                    <div class="step-number">3</div>
+                    <div class="step-label">Selecionar Datas</div>
+                </div>
+                <div class="step" id="step4">
+                    <div class="step-number">4</div>
+                    <div class="step-label">Confirmar</div>
+                </div>
+            </div>
+
+            <div class="creation-flow">
+                <!-- PASSO 1: Cadastro de Hóspedes -->
+                <div class="flow-section active" id="step1-content">
+                    <div class="guest-creation-card">
+                        <h4 class="section-title">👥 Cadastrar Hóspedes</h4>
+                        
+                        <div class="guest-form">
+                            <div class="form-group">
+                                <label class="form-label">Nome Completo *</label>
+                                <input type="text" id="guestName" class="form-control" placeholder="Nome do hóspede">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">RG *</label>
+                                <input type="text" id="guestRg" class="form-control" placeholder="Número do RG">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Telefone *</label>
+                                <input type="text" id="guestPhone" class="form-control" placeholder="(00) 00000-0000">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Email</label>
+                                <input type="email" id="guestEmail" class="form-control" placeholder="email@exemplo.com">
+                            </div>
+                        </div>
+                        
+                        <button class="btn btn-success" onclick="reservationManager.addGuestToList()">
+                            ➕ Adicionar Hóspede
+                        </button>
+
+                        <!-- Lista de Hóspedes Cadastrados -->
+                        <div class="guest-list-container" id="guestListContainer">
+                            <h5>Hóspedes Cadastrados:</h5>
+                            <div id="guestList">
+                                <p style="color: #666; font-style: italic; text-align: center; padding: 2rem;">
+                                    Nenhum hóspede cadastrado ainda
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="navigation-buttons">
+                        <div></div> <!-- Espaço vazio para alinhamento -->
+                        <button class="btn btn-primary" onclick="reservationManager.goToStep(2)">
+                            Próximo → Selecionar Quarto
+                        </button>
+                    </div>
+                </div>
+
+                <!-- PASSO 2: Seleção de Quarto -->
+                <div class="flow-section" id="step2-content">
+                    <div class="card">
+                        <h4 class="section-title">🏠 Selecionar Quarto</h4>
+                        <div class="form-group">
+                            <label class="form-label">Número do Quarto *</label>
+                            <input type="number" id="roomNumber" class="form-control" placeholder="Digite o número do quarto">
+                        </div>
+                        <div class="form-group">
+                            <small style="color: #666;">
+                                💡 Dica: Verifique a disponibilidade do quarto antes de prosseguir
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="navigation-buttons">
+                        <button class="btn btn-secondary" onclick="reservationManager.goToStep(1)">
+                            ← Voltar
+                        </button>
+                        <button class="btn btn-primary" onclick="reservationManager.goToStep(3)">
+                            Próximo → Selecionar Datas
+                        </button>
+                    </div>
+                </div>
+
+                <!-- PASSO 3: Seleção de Datas -->
+                <div class="flow-section" id="step3-content">
+                    <div class="card">
+                        <h4 class="section-title">📅 Selecionar Datas da Reserva</h4>
+                        
+                        <div class="date-picker-container">
+                            <div class="date-input-group">
+                                <label class="form-label">Adicionar Data</label>
+                                <input type="date" id="singleDateInput" class="form-control">
+                            </div>
+                            <div style="display: flex; align-items: end;">
+                                <button class="btn btn-success" onclick="reservationManager.addSingleDateToSelection()" style="margin-bottom: 0.5rem;">
+                                    ➕ Adicionar
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="date-picker-container">
+                            <div class="date-input-group">
+                                <label class="form-label">Adicionar Período</label>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                                    <input type="date" id="periodStartDate" class="form-control" placeholder="Início">
+                                    <input type="date" id="periodEndDate" class="form-control" placeholder="Fim">
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: end;">
+                                <button class="btn btn-info" onclick="reservationManager.addDateRangeToSelection()" style="margin-bottom: 0.5rem;">
+                                    📅 Adicionar Período
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Datas Selecionadas -->
+                        <div class="selected-dates">
+                            <h5>Datas Selecionadas:</h5>
+                            <div id="selectedDatesList">
+                                <p style="color: #666; font-style: italic;">Nenhuma data selecionada</p>
+                            </div>
+                            <div class="quick-actions" style="margin-top: 1rem;">
+                                <button class="btn btn-sm btn-danger" onclick="reservationManager.clearDateSelection()">
+                                    🗑️ Limpar Todas as Datas
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="navigation-buttons">
+                        <button class="btn btn-secondary" onclick="reservationManager.goToStep(2)">
+                            ← Voltar
+                        </button>
+                        <button class="btn btn-primary" onclick="reservationManager.goToStep(4)">
+                            Próximo → Confirmar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- PASSO 4: Confirmação -->
+                <div class="flow-section" id="step4-content">
+                    <div class="card">
+                        <h4 class="section-title">✅ Confirmar Reserva</h4>
+                        
+                        <div class="reservation-summary">
+                            <div class="summary-section">
+                                <h5>👥 Hóspedes</h5>
+                                <div id="summaryGuests"></div>
+                            </div>
+                            
+                            <div class="summary-section">
+                                <h5>🏠 Quarto</h5>
+                                <div id="summaryRoom"></div>
+                            </div>
+                            
+                            <div class="summary-section">
+                                <h5>📅 Datas</h5>
+                                <div id="summaryDates"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="navigation-buttons">
+                        <button class="btn btn-secondary" onclick="reservationManager.goToStep(3)">
+                            ← Voltar
+                        </button>
+                        <button class="btn btn-success" onclick="reservationManager.createReservation()">
+                            🎉 Criar Reserva
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Gerenciar Reserva (EXPANDIDO) -->
+    <div id="manageReservationModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3 class="card-title">Gerenciar Reserva</h3>
+                <span class="close" onclick="reservationManager.closeManageModal()">&times;</span>
+            </div>
+            <div class="management-card">
+                <div id="manageReservationContent">
+                    <!-- Conteúdo dinâmico será carregado aqui -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Adicionar Datas -->
+    <div id="addDatesModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="card-title">Adicionar Datas</h3>
+                <span class="close" onclick="reservationManager.closeAddDatesModal()">&times;</span>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Nova Data</label>
+                <input type="date" id="newSingleDate" class="form-control">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Ou período (múltiplas datas)</label>
+                <div class="reservation-form">
+                    <div class="form-group">
+                        <input type="date" id="newCheckInDate" class="form-control" placeholder="Entrada">
+                    </div>
+                    <div class="form-group">
+                        <input type="date" id="newCheckOutDate" class="form-control" placeholder="Saída">
+                    </div>
+                </div>
+            </div>
+            <div id="dateAvailabilityResult"></div>
+            <div class="quick-actions">
+                <button class="btn btn-success" onclick="reservationManager.checkDateAvailability()">
+                    Verificar Disponibilidade
+                </button>
+                <button class="btn btn-primary" onclick="reservationManager.addSingleDate()">
+                    Adicionar Data Única
+                </button>
+                <button class="btn btn-info" onclick="reservationManager.addDateRange()">
+                    Adicionar Período
+                </button>
+                <button class="btn btn-danger" onclick="reservationManager.closeAddDatesModal()">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Adicionar Quarto -->
+    <div id="addRoomModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="card-title">Adicionar Quarto</h3>
+                <span class="close" onclick="reservationManager.closeAddRoomModal()">&times;</span>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Número do Quarto</label>
+                <input type="number" id="newRoomNumber" class="form-control" placeholder="Número do quarto">
+            </div>
+            <div class="quick-actions">
+                <button class="btn btn-primary" onclick="reservationManager.addRoom()">
+                    Adicionar Quarto
+                </button>
+                <button class="btn btn-danger" onclick="reservationManager.closeAddRoomModal()">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Detalhes da Reserva -->
+    <div id="reservationDetailsModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 class="card-title">Detalhes da Reserva</h3>
+                <span class="close" onclick="document.getElementById('reservationDetailsModal').style.display = 'none'">&times;</span>
+            </div>
+            <div id="reservationDetailsContent">
+                <!-- Conteúdo dinâmico será carregado aqui -->
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="container">
+            <p><strong>&copy; Interactive Edge System</strong></p>
+        </div>
+    </footer>
+
+    <script th:src="@{/js/reserve.js}"></script>
+</body>
+</html>

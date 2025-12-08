@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciar Hóspedes</title>
+    <link rel="stylesheet" th:href="@{/css/guest.css}">
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1 class="logo">Interactive Edge</h1>
+            <nav class="nav">
+                <a th:href="@{/}" class="nav-link">Dashboard</a>
+                <a th:href="@{/guest}" class="nav-link active">Hóspedes</a>
+                <a th:href="@{/room}" class="nav-link">Quartos</a>
+                <div class="dropdown">
+                    <a class="nav-link dropdown-link">Gerenciar</a>
+                    <div class="dropdown-content">
+                        <a th:href="@{/reserve}">Reservas</a>
+                        <a th:href="@{/financas}">Finanças</a>
+                    </div>
+                </div>
+                <div class="user-info" id="userInfo">
+                    <!-- Informações do usuário serão carregadas aqui -->
+                </div>
+                <a href="#" class="nav-link" id="logoutBtn">Sair</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <div class="card">
+                <div class="page-header">
+                    <div>
+                        <h2 class="card-title">Gerenciar Hóspedes</h2>
+                        <p>Cadastre e gerencie hóspedes do Interactive Edge</p>
+                    </div>
+                    <div class="quick-actions">
+                        <a href="/calendario" class="btn btn-calendar">
+                            📅 Ver Calendário
+                        </a>
+                        <a href="/reserve" class="btn btn-primary">
+                            ➕ Gerenciar Reservas
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Formulário de Cadastro de Hóspede -->
+            <div class="card">
+                <h3 class="card-title" id="formTitle">Cadastrar Novo Hóspede</h3>
+                <div class="guest-form">
+                    <div class="form-group">
+                        <label class="form-label">Nome Completo</label>
+                        <input type="text" id="guestName" class="form-control" placeholder="Digite o nome do hóspede">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">RG</label>
+                        <input type="text" id="guestRg" class="form-control" placeholder="Digite o RG">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Telefone</label>
+                        <input type="text" id="guestPhone" class="form-control" placeholder="Digite o telefone">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" id="guestEmail" class="form-control" placeholder="Digite o email">
+                    </div>
+                </div>
+                <div class="quick-actions">
+                    <button id="saveGuestBtn" class="btn btn-primary">Salvar Hóspede</button>
+                    <button id="cancelEditBtn" class="btn btn-danger" style="display: none;">Cancelar Edição</button>
+                </div>
+            </div>
+
+            <!-- Busca de Hóspedes -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Buscar Hóspedes</h3>
+                </div>
+                <div class="form-group">
+                    <input type="text" id="searchInput" class="form-control" 
+                           placeholder="Digite o nome do hóspede...">
+                </div>
+                <div id="searchResults"></div>
+            </div>
+
+            <!-- Lista de Hóspedes -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Lista de Hóspedes</h3>
+                    <div>
+                        <button class="btn btn-sm btn-success" onclick="loadGuests()">🔄 Atualizar</button>
+                    </div>
+                </div>
+                <div id="guestList">
+                    <p>Carregando hóspedes...</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p><strong></strong>&copy;Interactive Edge System</p>
+        </div>
+    </footer>
+
+    <script>
+        class GuestManager {
+            constructor() {
+                this.baseUrl = '';
+                this.token = localStorage.getItem('jwtToken');
+                this.editingGuestId = null;
+                this.initEventListeners();
+                this.checkAuthentication();
+                this.loadGuests();
+            }
+
+            checkAuthentication() {
+                if (!this.token) {
+                    window.location.href = '/login';
+                    return;
+                }
+                
+                const tokenExpiry = localStorage.getItem('tokenExpiry');
+                if (tokenExpiry && Date.now() > parseInt(tokenExpiry)) {
+                    this.logout();
+                    return;
+                }
+                
+                this.loadUserInfo();
+            }
+
+            async loadUserInfo() {
+                try {
+                    const userInfoElement = document.getElementById('userInfo');
+                    const userEmail = localStorage.getItem('userInfo');
+                    
+                    if (userInfoElement && userEmail) {
+                        userInfoElement.textContent = `Usuário: ${userEmail}`;
+                    }
+                } catch (error) {
+                    console.error('Erro ao carregar informações do usuário:', error);
+                }
+            }
+
+            initEventListeners() {
+                // Logout
+                const logoutBtn = document.getElementById('logoutBtn');
+                if (logoutBtn) {
+                    logoutBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        this.logout();
+                    });
+                }
+
+                // Salvar hóspede
+                const saveBtn = document.getElementById('saveGuestBtn');
+                if (saveBtn) {
+                    saveBtn.addEventListener('click', () => this.saveGuest());
+                }
+
+                // Cancelar edição
+                const cancelBtn = document.getElementById('cancelEditBtn');
+                if (cancelBtn) {
+                    cancelBtn.addEventListener('click', () => this.cancelEdit());
+                }
+
+                // Busca em tempo real
+                const searchInput = document.getElementById('searchInput');
+                if (searchInput) {
+                    searchInput.addEventListener('input', (e) => this.searchGuests(e.target.value));
+                }
+
+                // Enter para salvar
+                document.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.saveGuest();
+                    }
+                });
+            }
+
+            logout() {
+                localStorage.removeItem('jwtToken');
+                localStorage.removeItem('tokenExpiry');
+                localStorage.removeItem('userInfo');
+                window.location.href = '/login';
+            }
+
+            async makeAuthenticatedRequest(url, options = {}) {
+                if (!this.token) {
+                    this.logout();
+                    throw new Error('Token de autenticação não encontrado');
+                }
+
+                const defaultOptions = {
+                    headers: {
+                        'Authorization': `Bearer ${this.token}`,
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    }
+                };
+
+                const mergedOptions = { ...defaultOptions, ...options };
+                
+                try {
+                    const response = await fetch(url, mergedOptions);
+                    
+                    if (response.status === 401 || response.status === 403) {
+                        this.logout();
+                        throw new Error('Sessão expirada. Faça login novamente.');
+                    }
+                    
+                    return response;
+                } catch (error) {
+                    console.error('Erro na requisição:', error);
+                    throw error;
+                }
+            }
+
+            async loadGuests() {
+                try {
+                    const response = await this.makeAuthenticatedRequest('/guest/all');
+                    
+                    if (response.ok) {
+                        const guests = await response.json();
+                        this.displayGuests(guests);
+                    } else {
+                        throw new Error('Erro ao carregar hóspedes');
+                    }
+                } catch (error) {
+                    console.error('Erro ao carregar hóspedes:', error);
+                    this.showAlert('Erro ao carregar lista de hóspedes', 'error');
+                }
+            }
+
+            displayGuests(guests) {
+                const container = document.getElementById('guestList');
+                if (!container) return;
+
+                if (guests.length === 0) {
+                    container.innerHTML = '<p>Nenhum hóspede cadastrado</p>';
+                    return;
+                }
+
+                const html = `
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>RG</th>
+                                <th>Telefone</th>
+                                <th>Email</th>
+                                <th>Reservas</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${guests.map(guest => `
+                                <tr>
+                                    <td>${this.escapeHtml(guest.name)}</td>
+                                    <td>${this.escapeHtml(guest.rg)}</td>
+                                    <td>${this.escapeHtml(guest.phone)}</td>
+                                    <td>${this.escapeHtml(guest.email || '')}</td>
+                                    <td>
+                                        <span class="badge ${guest.reservation && guest.reservation.length > 0 ? 'badge-busy' : 'badge-vague'}">
+                                            ${guest.reservation ? guest.reservation.length : 0} reserva(s)
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary" onclick="guestManager.editGuest(${guest.id}, '${this.escapeHtml(guest.name)}', '${this.escapeHtml(guest.rg)}', '${this.escapeHtml(guest.phone)}', '${this.escapeHtml(guest.email || '')}')">
+                                            ✏️ Editar
+                                        </button>
+                                        <button class="btn btn-sm btn-danger" onclick="guestManager.deleteGuest(${guest.id})">
+                                            🗑️ Excluir
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+
+                container.innerHTML = html;
+            }
+
+            async searchGuests(searchTerm) {
+                const resultsContainer = document.getElementById('searchResults');
+                if (!resultsContainer) return;
+
+                if (searchTerm.length < 2) {
+                    resultsContainer.innerHTML = '';
+                    return;
+                }
+
+                try {
+                    const response = await this.makeAuthenticatedRequest('/guest/all');
+                    
+                    if (response.ok) {
+                        const allGuests = await response.json();
+                        const filteredGuests = allGuests.filter(guest => 
+                            guest.name.toLowerCase().includes(searchTerm.toLowerCase())
+                        );
+
+                        if (filteredGuests.length === 0) {
+                            resultsContainer.innerHTML = '<p>Nenhum hóspede encontrado</p>';
+                            return;
+                        }
+
+                        const html = filteredGuests.map(guest => `
+                            <div style="border-left: 3px solid var(--orange); padding: 10px; margin-bottom: 10px; background: var(--white);">
+                                <strong>${this.escapeHtml(guest.name)}</strong><br>
+                                <strong>RG:</strong> ${this.escapeHtml(guest.rg)}<br>
+                                <strong>Telefone:</strong> ${this.escapeHtml(guest.phone)}<br>
+                                <strong>Email:</strong> ${this.escapeHtml(guest.email || '')}<br>
+                                <strong>Reservas:</strong> <span class="badge ${guest.reservation && guest.reservation.length > 0 ? 'badge-busy' : 'badge-vague'}">
+                                    ${guest.reservation ? guest.reservation.length : 0}
+                                </span>
+                                <div style="margin-top: 8px;">
+                                    <button class="btn btn-sm btn-primary" onclick="guestManager.editGuest(${guest.id}, '${this.escapeHtml(guest.name)}', '${this.escapeHtml(guest.rg)}', '${this.escapeHtml(guest.phone)}', '${this.escapeHtml(guest.email || '')}')">
+                                        Editar
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('');
+
+                        resultsContainer.innerHTML = html;
+                    }
+                } catch (error) {
+                    console.error('Erro na busca:', error);
+                }
+            }
+
+            async saveGuest() {
+                const name = document.getElementById('guestName').value.trim();
+                const rg = document.getElementById('guestRg').value.trim();
+                const phone = document.getElementById('guestPhone').value.trim();
+                const email = document.getElementById('guestEmail').value.trim();
+
+                // Verifica se pelo menos um campo foi preenchido
+                if (!name && !rg && !phone && !email) {
+                    this.showAlert('Por favor, preencha pelo menos um campo', 'error');
+                    return;
+                }
+
+                const guestData = {
+                    name: name,
+                    rg: rg,
+                    phone: phone,
+                    email: email
+                };
+
+                try {
+                    let response;
+                    if (this.editingGuestId) {
+                        // Atualizar hóspede existente
+                        response = await this.makeAuthenticatedRequest(`/guest/update/${this.editingGuestId}`, {
+                            method: 'PUT',
+                            body: JSON.stringify(guestData)
+                        });
+                    } else {
+                        // Criar novo hóspede
+                        response = await this.makeAuthenticatedRequest('/guest/insert', {
+                            method: 'POST',
+                            body: JSON.stringify(guestData)
+                        });
+                    }
+
+                    if (response.ok) {
+                        const savedGuest = await response.json();
+                        this.showAlert(
+                            this.editingGuestId ? 'Hóspede atualizado com sucesso!' : 'Hóspede cadastrado com sucesso!', 
+                            'success'
+                        );
+                        this.clearForm();
+                        this.loadGuests();
+                    } else {
+                        throw new Error('Erro ao salvar hóspede');
+                    }
+                } catch (error) {
+                    console.error('Erro ao salvar hóspede:', error);
+                    this.showAlert('Erro ao salvar hóspede', 'error');
+                }
+            }
+
+            editGuest(id, name, rg, phone, email) {
+                this.editingGuestId = id;
+                
+                document.getElementById('guestName').value = this.unescapeHtml(name);
+                document.getElementById('guestRg').value = this.unescapeHtml(rg);
+                document.getElementById('guestPhone').value = this.unescapeHtml(phone);
+                document.getElementById('guestEmail').value = this.unescapeHtml(email);
+                
+                document.getElementById('formTitle').textContent = 'Editar Hóspede';
+                document.getElementById('saveGuestBtn').textContent = 'Atualizar Hóspede';
+                document.getElementById('cancelEditBtn').style.display = 'inline-block';
+                
+                // Scroll para o formulário
+                document.getElementById('guestName').scrollIntoView({ behavior: 'smooth' });
+            }
+
+            cancelEdit() {
+                this.editingGuestId = null;
+                this.clearForm();
+            }
+
+            clearForm() {
+                document.getElementById('guestName').value = '';
+                document.getElementById('guestRg').value = '';
+                document.getElementById('guestPhone').value = '';
+                document.getElementById('guestEmail').value = '';
+                
+                document.getElementById('formTitle').textContent = 'Cadastrar Novo Hóspede';
+                document.getElementById('saveGuestBtn').textContent = 'Salvar Hóspede';
+                document.getElementById('cancelEditBtn').style.display = 'none';
+                
+                document.getElementById('searchInput').value = '';
+                document.getElementById('searchResults').innerHTML = '';
+            }
+
+            async deleteGuest(id) {
+                if (!confirm('Tem certeza que deseja excluir este hóspede?')) {
+                    return;
+                }
+
+                try {
+                    const response = await this.makeAuthenticatedRequest(`/guest/delete/${id}`, {
+                        method: 'DELETE'
+                    });
+
+                    if (response.ok) {
+                        this.showAlert('Hóspede excluído com sucesso!', 'success');
+                        this.loadGuests();
+                    } else {
+                        throw new Error('Erro ao excluir hóspede');
+                    }
+                } catch (error) {
+                    console.error('Erro ao excluir hóspede:', error);
+                    this.showAlert('Erro ao excluir hóspede', 'error');
+                }
+            }
+
+            showAlert(message, type = 'info') {
+                const alert = document.createElement('div');
+                alert.className = `alert alert-${type}`;
+                alert.textContent = message;
+
+                const container = document.querySelector('.container');
+                container.insertBefore(alert, container.firstChild);
+
+                setTimeout(() => {
+                    alert.remove();
+                }, 5000);
+            }
+
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            unescapeHtml(text) {
+                const div = document.createElement('div');
+                div.innerHTML = text;
+                return div.textContent;
+            }
+        }
+
+        // Inicializar quando o DOM estiver carregado
+        let guestManager;
+        document.addEventListener('DOMContentLoaded', () => {
+            guestManager = new GuestManager();
+        });
+
+        // Função global para carregar hóspedes
+        function loadGuests() {
+            if (guestManager) {
+                guestManager.loadGuests();
+            }
+        }
+    </script>
+</body>
+</html>
