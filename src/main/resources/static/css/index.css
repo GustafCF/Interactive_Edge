@@ -1,7 +1,7 @@
 :root {
-    --orange: #8700a8;
-    --orange-light: #780096;
-    --orange-dark: #4e0072;
+    --orange: #eb0000;
+    --orange-light: #960000;
+    --orange-dark: #720000;
     --green: #90EE90;
     --green-light: #A8E6A8;
     --green-dark: #7CCD7C;
@@ -30,10 +30,9 @@ body {
     padding: 0 20px;
 }
 
-/* Header - Ajustes principais */
 .header {
     background: linear-gradient(135deg, var(--orange), var(--orange-light));
-    color: rgb(255, 153, 0);
+    color: rgb(253, 191, 74);
     padding: 0.8rem 0;
     box-shadow: var(--shadow);
     position: relative;
@@ -55,7 +54,7 @@ body {
 }
 
 .nav-link {
-    color: rgb(255, 153, 0);
+    color: rgb(253, 191, 74);
     text-decoration: none;
     margin-left: 1rem;
     padding: 0.4rem 0.8rem;
@@ -136,21 +135,18 @@ body {
     margin-left: 4px;
 }
 
-/* Main Content */
 .main {
     min-height: calc(100vh - 140px);
     padding: 2rem 0;
 }
 
-/* Footer */
 .footer {
-    background-color: rgb(27, 206, 206);
-    color: rgb(201, 114, 0);
+    background-color: rgb(253, 191, 74);
+    color: #720000;
     text-align: center;
     padding: 1rem 0;
 }
 
-/* Cards */
 .card {
     background: var(--white);
     border-radius: 8px;
@@ -173,7 +169,6 @@ body {
     margin: 0;
 }
 
-/* Buttons */
 .btn {
     display: inline-block;
     padding: 0.75rem 1.5rem;

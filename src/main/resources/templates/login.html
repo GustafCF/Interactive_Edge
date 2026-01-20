@@ -3,17 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
+    <title>Login - Interactive Edge</title>
+    <link rel="icon" th:href="@{/images/image-favicon.jpg}" type="image/png">
     <link rel="stylesheet" th:href="@{/css/login.css}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script th:src="@{/js/login.js}" defer></script>
 </head>
 <body>
     <header class="header">
         <div class="container">
             <h1 class="logo">Interactive Edge</h1>
-            <!-- <nav class="nav">
-                <a href="#" class="nav-link">Sobre</a>
-                <a href="#" class="nav-link">Contato</a>
-            </nav> -->
         </div>
     </header>
 
@@ -22,16 +21,19 @@
             <div class="login-container">
                 <div class="login-card">
                     <div class="login-header">
-                        <h2 class="login-title">Acesso ao Sistema</h2>
-                        <p class="login-subtitle">Entre com suas credenciais</p>
+                        <h2 class="login-title">
+                            <i class="fas fa-lock"></i> Acesso ao Sistema
+                        </h2>
+                        <p class="login-subtitle">Entre com suas credenciais para acessar o sistema</p>
                     </div>
                     
-                    <div id="alertError" class="alert alert-error"></div>
-                    <div id="alertSuccess" class="alert alert-success"></div>
+                    <div id="alertContainer" class="alert-container"></div>
                     
-                    <form id="loginForm">
+                    <form id="loginForm" novalidate>
                         <div class="form-group">
-                            <label for="email" class="form-label">E-mail</label>
+                            <label for="email" class="form-label">
+                                <i class="fas fa-envelope"></i> E-mail
+                            </label>
                             <input 
                                 type="email" 
                                 id="email" 
@@ -39,23 +41,35 @@
                                 class="form-control" 
                                 placeholder="seu@email.com"
                                 required
+                                autocomplete="username"
                             >
+                            <div class="error-message" id="emailError"></div>
                         </div>
                         
                         <div class="form-group">
-                            <label for="password" class="form-label">Senha</label>
-                            <input 
-                                type="password" 
-                                id="password" 
-                                name="password" 
-                                class="form-control" 
-                                placeholder="Sua senha"
-                                required
-                            >
+                            <label for="password" class="form-label">
+                                <i class="fas fa-key"></i> Senha
+                            </label>
+                            <div class="password-container">
+                                <input 
+                                    type="password" 
+                                    id="password" 
+                                    name="password" 
+                                    class="form-control" 
+                                    placeholder="Sua senha"
+                                    required
+                                    autocomplete="current-password"
+                                >
+                                <button type="button" id="togglePassword" class="password-toggle">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <div class="error-message" id="passwordError"></div>
                         </div>
                         
-                        <button type="submit" id="loginBtn" class="btn btn-primary">
-                            Entrar
+                        <button type="submit" id="loginBtn" class="btn btn-primary btn-login">
+                            <span class="btn-text">Entrar</span>
+                            <div class="loading-spinner"></div>
                         </button>
                     </form>
                 </div>
@@ -65,132 +79,8 @@
 
     <footer class="footer">
         <div class="container">
-            <p><Strong>&copy; Interactive Edge System</Strong></p>
+            <p><strong>&copy; Interactive Edge System</strong></p>
         </div>
     </footer>
-
-    <script>
-        class LoginSystem {
-            constructor() {
-                this.baseUrl = '/auth';
-                this.initEventListeners();
-            }
-
-            initEventListeners() {
-                const loginForm = document.getElementById('loginForm');
-                if (loginForm) {
-                    loginForm.addEventListener('submit', (e) => this.handleLogin(e));
-                }
-            }
-
-            async handleLogin(event) {
-                event.preventDefault();
-                
-                const email = document.getElementById('email').value;
-                const password = document.getElementById('password').value;
-                const loginBtn = document.getElementById('loginBtn');
-                
-                // Validação básica
-                if (!email || !password) {
-                    this.showAlert('Por favor, preencha todos os campos.', 'error');
-                    return;
-                }
-                
-                // Desabilitar botão e mostrar loading
-                loginBtn.disabled = true;
-                loginBtn.innerHTML = '<div class="loading"></div> Entrando...';
-                
-                try {
-                    const response = await this.performLogin(email, password);
-                    
-                    if (response.ok) {
-                        const data = await response.json();
-                        this.handleLoginSuccess(data);
-                    } else {
-                        this.handleLoginError(response);
-                    }
-                } catch (error) {
-                    this.handleLoginError(null, error.message);
-                } finally {
-                    // Reabilitar botão
-                    loginBtn.disabled = false;
-                    loginBtn.innerHTML = 'Entrar';
-                }
-            }
-
-            async performLogin(email, password) {
-                const loginData = {
-                    email: email,
-                    password: password
-                };
-                
-                return fetch(`${this.baseUrl}/login`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(loginData)
-                });
-            }
-
-            handleLoginSuccess(data) {
-                this.showAlert('Login realizado com sucesso! Redirecionando...', 'success');
-                const email = document.getElementById('email').value;
-                
-                // Armazenar token JWT (ajuste conforme sua implementação)
-                if (data.accessToken) {
-                    localStorage.setItem('jwtToken', data.accessToken);
-                    localStorage.setItem('tokenExpiresIn', data.expiresIn);
-                    localStorage.setItem('userInfo', email);
-                }
-                
-                // Redirecionar após um breve delay
-                setTimeout(() => {
-                    window.location.href = '/'; // Redireciona para a página principal
-                }, 1500);
-            }
-
-            handleLoginError(response, errorMessage = null) {
-                if (response) {
-                    switch (response.status) {
-                        case 401:
-                        case 403:
-                            this.showAlert('E-mail ou senha incorretos.', 'error');
-                            break;
-                        case 404:
-                            this.showAlert('Usuário não encontrado.', 'error');
-                            break;
-                        default:
-                            this.showAlert('Erro ao realizar login. Tente novamente.', 'error');
-                    }
-                } else {
-                    this.showAlert(errorMessage || 'Erro de conexão. Verifique sua internet.', 'error');
-                }
-            }
-
-            showAlert(message, type) {
-                // Esconder todos os alerts primeiro
-                document.getElementById('alertError').style.display = 'none';
-                document.getElementById('alertSuccess').style.display = 'none';
-                
-                // Mostrar o alerta apropriado
-                const alertElement = document.getElementById(`alert${type.charAt(0).toUpperCase() + type.slice(1)}`);
-                alertElement.textContent = message;
-                alertElement.style.display = 'block';
-                
-                // Auto-esconder após 5 segundos (apenas para sucesso)
-                if (type === 'success') {
-                    setTimeout(() => {
-                        alertElement.style.display = 'none';
-                    }, 5000);
-                }
-            }
-        }
-
-        // Inicializar quando o DOM estiver carregado
-        document.addEventListener('DOMContentLoaded', () => {
-            window.loginSystem = new LoginSystem();
-        });
-    </script>
 </body>
 </html>

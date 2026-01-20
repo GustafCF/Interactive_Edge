@@ -45,8 +45,7 @@ public class SecurityConfig {
         http
                 .cors(Customizer.withDefaults())
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/h2-console/**").permitAll() 
-                        .requestMatchers("/","/login","/calendario","/room-calendar", "/room-calendar/**", "/guest","/layout","/reserve","/room", "/static/**", "/js/**", "/css/**", "/airbnb-setup", "/calendar-airbnb-setup", "/financas").permitAll()
+                        .requestMatchers("/h2-console/**", "/","/login","/calendario","/room-calendar", "/room-calendar/**", "/guest","/layout","/reserve","/room", "/static/**", "/js/**", "/css/**","/images/**", "/airbnb-setup", "/calendar-airbnb-setup", "/financas", "/funcionarios").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/airbnb/connections", "/api/booking/health", "/api/booking/connections", "/connections/{propertyId}").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/airbnb/connect", "/api/airbnb/sync-now", "/api/airbnb/setup-calendar-bidirectional", "/api/booking/setup-bidirectional", "/api/booking/sync-now/{propertyId}", "/api/booking/sync-now/all", "/api/booking/setup-calendar-bidirectional", "/api/booking/test-connection").permitAll()

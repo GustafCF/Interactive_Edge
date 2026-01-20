@@ -63,12 +63,10 @@ public class RoomService {
         Room room = repo.findById(roomId)
                 .orElseThrow(() -> new ResourceNotFoundException(roomId));
 
-        // Verificar se há camas no quarto
         if (room.getBeds().isEmpty()) {
             throw new IllegalStateException("O quarto não possui camas para remover");
         }
 
-        // 🔥 CORREÇÃO: Encontrar apenas camas VAGUE para remover
         Optional<Bed> availableBedToRemove = room.getBeds().stream()
                 .filter(bed -> bed.getBedStatus() == BedStatus.VAGUE)
                 .findFirst();
@@ -78,8 +76,6 @@ public class RoomService {
         }
 
         Bed bedToRemove = availableBedToRemove.get();
-
-        // 🔥 CORREÇÃO: Verificar se a cama não tem ocupações futuras
         List<BedOccupation> bedOccupations = bedOccupationRepo.findByBed(bedToRemove);
         // if (!bedOccupations.isEmpty()) {
         //     boolean hasFutureOccupations = bedOccupations.stream()
@@ -92,16 +88,13 @@ public class RoomService {
         //     }
         // }
 
-        // Remover a cama do quarto
         room.getBeds().remove(bedToRemove);
         repo.save(room);
 
-        // Se houver ocupações passadas, removê-las primeiro
         if (!bedOccupations.isEmpty()) {
             bedOccupationRepo.deleteAll(bedOccupations);
         }
-
-        // Agora pode deletar a cama com segurança
+        
         bedRepo.delete(bedToRemove);
 
         return room;

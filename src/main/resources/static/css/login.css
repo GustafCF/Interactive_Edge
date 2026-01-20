@@ -1,7 +1,7 @@
 :root {
-    --orange: #8700a8;
-    --orange-light: #780096;
-    --orange-dark: #4e0072;
+    --orange: #eb0000;
+    --orange-light: #960000;
+    --orange-dark: #720000;
     --green: #90EE90;
     --green-light: #A8E6A8;
     --green-dark: #7CCD7C;
@@ -36,7 +36,7 @@ body {
 /* Header */
 .header {
     background: linear-gradient(135deg, var(--orange), var(--orange-light));
-    color: rgb(255, 153, 0);
+    color: rgb(253, 191, 74);
     padding: 1rem 0;
     box-shadow: var(--shadow);
 }
@@ -76,8 +76,8 @@ body {
 
 /* Footer */
 .footer {
-    background-color: rgb(27, 206, 206);
-    color: rgb(201, 114, 0);
+    background-color: rgb(253, 191, 74);
+    color: #720000;
     text-align: center;
     padding: 1rem 0;
 }

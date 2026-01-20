@@ -4,195 +4,33 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gerenciar Reservas</title>
+    <link rel="icon" th:href="@{/images/image-favicon.jpg}" type="image/png">
     <link rel="stylesheet" th:href="@{/css/reserve.css}">
-        <style>
-        /* Estilos adicionais específicos para melhorias visuais */
-        .search-result-item {
-            background: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 1rem;
-            margin-bottom: 0.5rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        
-        .guest-list-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.75rem;
-            background: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 6px;
-            margin-bottom: 0.5rem;
-        }
-        
-        .selected-date-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.5rem;
-            background: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
-            margin-bottom: 0.25rem;
-        }
-        
-        .date-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.5rem;
-            background: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
-            margin-bottom: 0.25rem;
-        }
-        
-        .guest-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.75rem;
-            background: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 6px;
-            margin-bottom: 0.5rem;
-        }
-        
-        .quick-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-        
-        .stat-card {
-            background: white;
-            padding: 1rem;
-            border-radius: 8px;
-            text-align: center;
-            border: 1px solid #e0e0e0;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .stat-number {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #FF6B35;
-            margin-bottom: 0.25rem;
-        }
-        
-        .stat-label {
-            font-size: 0.8rem;
-            color: #666;
-        }
-        
-        .value-controls {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            margin-top: 1rem;
-        }
-        
-        .value-control-group {
-            display: flex;
-            gap: 0.5rem;
-        }
-        
-        .value-input {
-            flex: 1;
-        }
-        
-        .value-breakdown {
-            background: #f8f9fa;
-            padding: 1rem;
-            border-radius: 6px;
-            margin-top: 1rem;
-            border: 1px solid #e9ecef;
-        }
-        
-        .breakdown-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 0.25rem 0;
-            border-bottom: 1px solid #dee2e6;
-        }
-        
-        .breakdown-item:last-child {
-            border-bottom: none;
-            font-weight: bold;
-            margin-top: 0.5rem;
-            padding-top: 0.5rem;
-            border-top: 2px solid #dee2e6;
-        }
-        
-        .dates-management {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-        }
-        
-        .current-dates {
-            max-height: 200px;
-            overflow-y: auto;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
-            padding: 0.5rem;
-        }
-        
-        .date-picker-group {
-            display: flex;
-            gap: 0.5rem;
-            align-items: end;
-        }
-        
-        .guest-list {
-            max-height: 200px;
-            overflow-y: auto;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
-            padding: 0.5rem;
-        }
-        
-        @media (max-width: 768px) {
-            .value-controls {
-                grid-template-columns: 1fr;
-            }
-            
-            .dates-management {
-                grid-template-columns: 1fr;
-            }
-            
-            .quick-stats {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <!-- Cabeçalho Padronizado -->
     <header class="header">
         <div class="container">
             <h1 class="logo">Interactive Edge</h1>
             <nav class="nav">
-                <a href="/" class="nav-link">Dashboard</a>
-                <a href="/guest" class="nav-link">Hóspedes</a>
-                <a href="/room" class="nav-link">Quartos</a>
+                <a href="/" class="nav-link"><i class="fas fa-home"></i> Dashboard</a>
+                <a href="/guest" class="nav-link"><i class="fas fa-users"></i> Hóspedes</a>
+                <a href="/room" class="nav-link"><i class="fas fa-bed"></i> Quartos</a>
                 <div class="dropdown">
-                    <a class="nav-link dropdown-link active">Gerenciar</a>
+                    <a class="nav-link dropdown-link active"><i class="fas fa-cog"></i> Gerenciar</a>
                     <div class="dropdown-content">
-                        <a href="/reserve">Reservas</a>
-                        <a href="/financas">Finanças</a>
+                        <a href="/reserve"><i class="fas fa-calendar-check"></i> Reservas</a>
+                        <a href="/financas"><i class="fas fa-chart-line"></i> Finanças</a>
+                        <a th:href="@{/funcionarios}"><i class="fas fa-user-tie"></i> Funcionários</a>
                     </div>
                 </div>
                 <a href="/calendario" class="btn-calendar" style="display: inline-block; padding: 0.4rem 0.8rem; margin-left: 1rem;">
-                    📅 Calendário
+                    <i class="fas fa-calendar"></i> Calendário
                 </a>
                 <div class="user-info" id="userInfo">
                     <!-- Informações do usuário serão carregadas aqui -->
                 </div>
-                <a href="#" class="nav-link" id="logoutBtn">Sair</a>
+                <a href="#" class="nav-link" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Sair</a>
             </nav>
         </div>
     </header>
@@ -208,9 +46,8 @@
                     </div>
                     <div class="quick-actions">
                         <button class="btn btn-primary" onclick="reservationManager.openCreateModal()">
-                            ➕ Nova Reserva
+                            <i class="fas fa-plus"></i> Nova Reserva
                         </button>
-                        <!-- REMOVIDO: Botões Atualizar e Debug -->
                     </div>
                 </div>
             </div>
@@ -224,16 +61,13 @@
                     <input type="text" id="searchInput" class="form-control" 
                            placeholder="Digite o ID da reserva ou nome do hóspede...">
                 </div>
-                <div id="searchResults"></div>
+                <div id="searchResults" class="search-results-container"></div>
             </div>
 
             <!-- Lista de Reservas -->
             <div class="card">
                 <div class="card-header">
                     <h3 class="card-title">Lista de Reservas</h3>
-                    <div class="quick-actions">
-                        <!-- REMOVIDO: Botão Testar Datas -->
-                    </div>
                 </div>
                 
                 <!-- Container expansível para a lista de reservas -->
@@ -289,7 +123,7 @@
                 <!-- PASSO 1: Cadastro de Hóspedes -->
                 <div class="flow-section active" id="step1-content">
                     <div class="guest-creation-card">
-                        <h4 class="section-title">👥 Cadastrar Hóspedes</h4>
+                        <h4 class="section-title"><i class="fas fa-users"></i> Cadastrar Hóspedes</h4>
                         
                         <div class="guest-form">
                             <div class="form-group">
@@ -311,7 +145,7 @@
                         </div>
                         
                         <button class="btn btn-success" onclick="reservationManager.addGuestToList()">
-                            ➕ Adicionar Hóspede
+                            <i class="fas fa-plus"></i> Adicionar Hóspede
                         </button>
 
                         <!-- Lista de Hóspedes Cadastrados -->
@@ -326,9 +160,9 @@
                     </div>
 
                     <div class="navigation-buttons">
-                        <div></div> <!-- Espaço vazio para alinhamento -->
+                        <div></div>
                         <button class="btn btn-primary" onclick="reservationManager.goToStep(2)">
-                            Próximo → Selecionar Quarto
+                            Próximo <i class="fas fa-arrow-right"></i> Selecionar Quarto
                         </button>
                     </div>
                 </div>
@@ -336,24 +170,24 @@
                 <!-- PASSO 2: Seleção de Quarto -->
                 <div class="flow-section" id="step2-content">
                     <div class="card">
-                        <h4 class="section-title">🏠 Selecionar Quarto</h4>
+                        <h4 class="section-title"><i class="fas fa-bed"></i> Selecionar Quarto</h4>
                         <div class="form-group">
                             <label class="form-label">Número do Quarto *</label>
                             <input type="number" id="roomNumber" class="form-control" placeholder="Digite o número do quarto">
                         </div>
                         <div class="form-group">
                             <small style="color: #666;">
-                                💡 Dica: Verifique a disponibilidade do quarto antes de prosseguir
+                                <i class="fas fa-lightbulb"></i> Dica: Verifique a disponibilidade do quarto antes de prosseguir
                             </small>
                         </div>
                     </div>
 
                     <div class="navigation-buttons">
                         <button class="btn btn-secondary" onclick="reservationManager.goToStep(1)">
-                            ← Voltar
+                            <i class="fas fa-arrow-left"></i> Voltar
                         </button>
                         <button class="btn btn-primary" onclick="reservationManager.goToStep(3)">
-                            Próximo → Selecionar Datas
+                            Próximo <i class="fas fa-arrow-right"></i> Selecionar Datas
                         </button>
                     </div>
                 </div>
@@ -361,7 +195,7 @@
                 <!-- PASSO 3: Seleção de Datas -->
                 <div class="flow-section" id="step3-content">
                     <div class="card">
-                        <h4 class="section-title">📅 Selecionar Datas da Reserva</h4>
+                        <h4 class="section-title"><i class="fas fa-calendar-alt"></i> Selecionar Datas da Reserva</h4>
                         
                         <div class="date-picker-container">
                             <div class="date-input-group">
@@ -370,7 +204,7 @@
                             </div>
                             <div style="display: flex; align-items: end;">
                                 <button class="btn btn-success" onclick="reservationManager.addSingleDateToSelection()" style="margin-bottom: 0.5rem;">
-                                    ➕ Adicionar
+                                    <i class="fas fa-plus"></i> Adicionar
                                 </button>
                             </div>
                         </div>
@@ -385,7 +219,7 @@
                             </div>
                             <div style="display: flex; align-items: end;">
                                 <button class="btn btn-info" onclick="reservationManager.addDateRangeToSelection()" style="margin-bottom: 0.5rem;">
-                                    📅 Adicionar Período
+                                    <i class="fas fa-calendar"></i> Adicionar Período
                                 </button>
                             </div>
                         </div>
@@ -398,7 +232,7 @@
                             </div>
                             <div class="quick-actions" style="margin-top: 1rem;">
                                 <button class="btn btn-sm btn-danger" onclick="reservationManager.clearDateSelection()">
-                                    🗑️ Limpar Todas as Datas
+                                    <i class="fas fa-trash"></i> Limpar Todas as Datas
                                 </button>
                             </div>
                         </div>
@@ -406,10 +240,10 @@
 
                     <div class="navigation-buttons">
                         <button class="btn btn-secondary" onclick="reservationManager.goToStep(2)">
-                            ← Voltar
+                            <i class="fas fa-arrow-left"></i> Voltar
                         </button>
                         <button class="btn btn-primary" onclick="reservationManager.goToStep(4)">
-                            Próximo → Confirmar
+                            Próximo <i class="fas fa-arrow-right"></i> Confirmar
                         </button>
                     </div>
                 </div>
@@ -417,21 +251,21 @@
                 <!-- PASSO 4: Confirmação -->
                 <div class="flow-section" id="step4-content">
                     <div class="card">
-                        <h4 class="section-title">✅ Confirmar Reserva</h4>
+                        <h4 class="section-title"><i class="fas fa-check-circle"></i> Confirmar Reserva</h4>
                         
                         <div class="reservation-summary">
                             <div class="summary-section">
-                                <h5>👥 Hóspedes</h5>
+                                <h5><i class="fas fa-users"></i> Hóspedes</h5>
                                 <div id="summaryGuests"></div>
                             </div>
                             
                             <div class="summary-section">
-                                <h5>🏠 Quarto</h5>
+                                <h5><i class="fas fa-bed"></i> Quarto</h5>
                                 <div id="summaryRoom"></div>
                             </div>
                             
                             <div class="summary-section">
-                                <h5>📅 Datas</h5>
+                                <h5><i class="fas fa-calendar-alt"></i> Datas</h5>
                                 <div id="summaryDates"></div>
                             </div>
                         </div>
@@ -439,10 +273,10 @@
 
                     <div class="navigation-buttons">
                         <button class="btn btn-secondary" onclick="reservationManager.goToStep(3)">
-                            ← Voltar
+                            <i class="fas fa-arrow-left"></i> Voltar
                         </button>
                         <button class="btn btn-success" onclick="reservationManager.createReservation()">
-                            🎉 Criar Reserva
+                            <i class="fas fa-check"></i> Criar Reserva
                         </button>
                     </div>
                 </div>
@@ -542,7 +376,7 @@
 
     <footer class="footer">
         <div class="container">
-            <p><strong>&copy; Interactive Edge System</strong></p>
+            <p><strong>&copy; Interactive Edge System - Gerenciamento de Reservas</strong></p>
         </div>
     </footer>
 

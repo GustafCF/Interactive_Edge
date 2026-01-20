@@ -95,7 +95,7 @@ public class User implements Serializable {
         return phone;
     }
 
-    public void setPhone() {
+    public void setPhone(String phone) {
         this.phone = phone;
     }
 

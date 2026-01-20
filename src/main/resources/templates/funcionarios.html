@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciar Funcionários</title>
+    <link rel="icon" th:href="@{/images/image-favicon.jpg}" type="image/png">
+    <link rel="stylesheet" th:href="@{/css/funcionarios.css}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1 class="logo">Interactive Edge</h1>
+            <nav class="nav">
+                <a th:href="@{/}" class="nav-link"><i class="fas fa-home"></i> Dashboard</a>
+                <a th:href="@{/guest}" class="nav-link"><i class="fas fa-users"></i> Hóspedes</a>
+                <a th:href="@{/room}" class="nav-link"><i class="fas fa-bed"></i> Quartos</a>
+                <div class="dropdown">
+                    <a class="nav-link dropdown-link"><i class="fas fa-cog"></i> Gerenciar</a>
+                    <div class="dropdown-content">
+                        <a th:href="@{/reserve}"><i class="fas fa-calendar-check"></i> Reservas</a>
+                        <a th:href="@{/financas}"><i class="fas fa-chart-line"></i> Finanças</a>
+                    </div>
+                </div>
+                <div class="user-info" id="userInfo">
+                </div>
+                <a href="#" class="nav-link" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Sair</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <!-- Cabeçalho da página -->
+            <div class="card">
+                <div class="dashboard-welcome">
+                    <div>
+                        <h2 class="card-title">Gerenciar Funcionários</h2>
+                        <p>Cadastre e gerencie os funcionários do sistema</p>
+                    </div>
+                    <div class="quick-actions">
+                        <button id="novoFuncionarioBtn" class="btn btn-primary">
+                            <i class="fas fa-user-plus"></i> Novo Funcionário
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filtros e Busca -->
+            <div class="card">
+                <div class="row">
+                    <div class="col-6">
+                        <div class="form-group">
+                            <label for="searchInput">Buscar Funcionário:</label>
+                            <div class="search-container">
+                                <input type="text" id="searchInput" class="form-control" 
+                                       placeholder="Digite nome, email ou telefone...">
+                                <button id="searchBtn" class="btn btn-primary">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="form-group">
+                            <label for="filterStatus">Filtrar por:</label>
+                            <select id="filterStatus" class="form-control">
+                                <option value="all">Todos</option>
+                                <option value="BASIC">Funcionário Básico</option>
+                                <option value="ADMIN">Administrador</option>
+                                <option value="MANAGER">Gerente</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabela de Funcionários -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Funcionários Cadastrados</h3>
+                    <span class="badge badge-vague" id="totalFuncionarios">0 funcionários</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table" id="funcionariosTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nome</th>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Telefone</th>
+                                <th>Cargo</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="funcionariosBody">
+                            <!-- Dados serão carregados via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination">
+                    <button id="prevPage" class="btn btn-sm" disabled>
+                        <i class="fas fa-chevron-left"></i> Anterior
+                    </button>
+                    <span id="pageInfo">Página 1 de 1</span>
+                    <button id="nextPage" class="btn btn-sm" disabled>
+                        Próxima <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Estatísticas -->
+            <div class="row">
+                <div class="col-3">
+                    <div class="card stats-card">
+                        <div class="stats-number" id="totalUsers">0</div>
+                        <div class="stats-label">Total de Funcionários</div>
+                    </div>
+                </div>
+                <div class="col-3">
+                    <div class="card stats-card">
+                        <div class="stats-number" id="basicUsers">0</div>
+                        <div class="stats-label">Funcionários Básicos</div>
+                    </div>
+                </div>
+                <div class="col-3">
+                    <div class="card stats-card">
+                        <div class="stats-number" id="adminUsers">0</div>
+                        <div class="stats-label">Administradores</div>
+                    </div>
+                </div>
+                <div class="col-3">
+                    <div class="card stats-card">
+                        <div class="stats-number" id="managerUsers">0</div>
+                        <div class="stats-label">Gerentes</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal para Novo/Editar Funcionário -->
+    <div id="funcionarioModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Novo Funcionário</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="funcionarioForm">
+                    <input type="hidden" id="userId">
+                    
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="name">Nome Completo *</label>
+                                <input type="text" id="name" class="form-control" required>
+                                <div class="error-message" id="nameError"></div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="username">Username *</label>
+                                <input type="text" id="username" class="form-control" required>
+                                <div class="error-message" id="usernameError"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="email">Email *</label>
+                                <input type="email" id="email" class="form-control" required>
+                                <div class="error-message" id="emailError"></div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="phone">Telefone</label>
+                                <input type="tel" id="phone" class="form-control" 
+                                       placeholder="(11) 99999-9999">
+                                <div class="error-message" id="phoneError"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="password">Senha <span id="passwordRequired">*</span></label>
+                                <input type="password" id="password" class="form-control">
+                                <div class="error-message" id="passwordError"></div>
+                                <small class="form-text">Mínimo 6 caracteres</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="confirmPassword">Confirmar Senha <span id="confirmPasswordRequired">*</span></label>
+                                <input type="password" id="confirmPassword" class="form-control">
+                                <div class="error-message" id="confirmPasswordError"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="role">Cargo *</label>
+                                <select id="role" class="form-control" required>
+                                    <option value="BASIC">Funcionário Básico</option>
+                                    <option value="ADMIN">Administrador</option>
+                                    <option value="MANAGER">Gerente</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label>Status</label>
+                                <div class="status-indicator">
+                                    <span class="badge badge-vague" id="statusBadge">ATIVO</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" id="cancelBtn">Cancelar</button>
+                        <button type="submit" class="btn btn-primary" id="saveBtn">Salvar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Confirmação -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content small-modal">
+            <div class="modal-header">
+                <h3>Confirmar Exclusão</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir o funcionário <strong id="deleteUserName"></strong>?</p>
+                <p class="warning-text">Esta ação não pode ser desfeita!</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="cancelDeleteBtn">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Excluir</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="container">
+            <p><strong>&copy; Interactive Edge System</strong></p>
+        </div>
+    </footer>
+
+    <script th:src="@{/js/index.js}"></script>
+    <script th:src="@{/js/funcionarios.js}"></script>
+</body>
+</html>

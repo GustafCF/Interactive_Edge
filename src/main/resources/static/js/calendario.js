@@ -31,13 +31,17 @@ class CalendarSystem {
         this.loadUserInfo();
     }
 
-    async loadUserInfo() {
+   loadUserInfo() {
         try {
             const userInfoElement = document.getElementById('userInfo');
             const userEmail = localStorage.getItem('userInfo');
+            const userName = localStorage.getItem('userName');
             
-            if (userInfoElement && userEmail) {
-                userInfoElement.textContent = `Usuário: ${userEmail}`;
+            if (userInfoElement) {
+                const displayName = userName || userEmail || 'Usuário';
+                userInfoElement.innerHTML = `
+                    <i class="fas fa-user"></i> ${displayName}
+                `;
             }
         } catch (error) {
             console.error('Erro ao carregar informações do usuário:', error);
@@ -204,7 +208,6 @@ class CalendarSystem {
             dayElement.classList.add('selected');
         }
         
-        // Marcar como expandido se for a data atual expandida
         if (this.expandedDate === dateString) {
             dayElement.classList.add('expanded');
         }
@@ -216,8 +219,7 @@ class CalendarSystem {
         
         const eventsElement = document.createElement('div');
         eventsElement.className = 'calendar-day-events';
-        
-        // Mostrar apenas informações resumidas quando não expandido
+
         if (this.expandedDate !== dateString) {
             const reservationsForDate = this.getReservationsForDate(dateString);
             
@@ -230,7 +232,6 @@ class CalendarSystem {
                 eventsElement.appendChild(eventElement);
             }
             
-            // Mostrar disponibilidade apenas se houver reservas
             if (reservedRooms.length > 0 && reservedRooms.length < totalRooms) {
                 const availableRooms = totalRooms - reservedRooms.length;
                 const availabilityElement = document.createElement('div');
@@ -240,12 +241,10 @@ class CalendarSystem {
                 eventsElement.appendChild(availabilityElement);
             }
             
-            // Adicionar indicador visual para datas selecionáveis quando o formulário estiver visível
             const isFormVisible = document.getElementById('reservationForm').style.display === 'block';
             if (isFormVisible && !dayElement.classList.contains('past') && !dayElement.classList.contains('fully-reserved')) {
                 const selectIndicator = document.createElement('div');
                 selectIndicator.className = 'event available';
-                // selectIndicator.textContent = '📅 Clique para selecionar';
                 selectIndicator.style.fontSize = '0.6rem';
                 selectIndicator.style.marginTop = '2px';
                 selectIndicator.style.background = 'var(--blue-light)';
@@ -253,7 +252,6 @@ class CalendarSystem {
                 eventsElement.appendChild(selectIndicator);
             }
         } else {
-            // Mostrar detalhes expandidos quando a data estiver clicada
             this.createExpandedDateContent(dateString, eventsElement);
         }
         
@@ -279,10 +277,8 @@ class CalendarSystem {
         const totalRooms = this.allRooms.length;
         const availableRooms = totalRooms - reservedRooms.length;
         
-        // Obter todas as reservas para esta data
         const reservationsForDate = this.getReservationsForDate(dateString);
         
-        // Mostrar quartos ocupados
         if (reservationsForDate.length > 0) {
             const occupiedTitle = document.createElement('div');
             occupiedTitle.className = 'event-title';
@@ -307,8 +303,7 @@ class CalendarSystem {
                 container.appendChild(eventElement);
             });
         }
-        
-        // Mostrar quartos disponíveis apenas se houver reservas
+
         if (reservedRooms.length > 0 && availableRooms > 0) {
             const availableTitle = document.createElement('div');
             availableTitle.className = 'event-title';
@@ -318,16 +313,13 @@ class CalendarSystem {
             availableTitle.style.fontSize = '0.7rem';
             container.appendChild(availableTitle);
             
-            // Encontrar quartos disponíveis
             const allRoomNumbers = this.allRooms.map(room => room.number);
             const occupiedRoomNumbers = reservedRooms;
             const availableRoomNumbers = allRoomNumbers.filter(roomNum => 
                 !occupiedRoomNumbers.includes(roomNum)
             );
-            
-            // Agrupar quartos disponíveis para não sobrecarregar a visualização
+
             if (availableRoomNumbers.length <= 5) {
-                // Mostrar todos os números se forem poucos
                 availableRoomNumbers.forEach(roomNum => {
                     const availableElement = document.createElement('div');
                     availableElement.className = 'event available';
@@ -418,14 +410,14 @@ class CalendarSystem {
                         </div>
                         <div class="reservation-actions">
                             <button class="btn btn-sm btn-info" onclick="calendarSystem.manageReservation(${reservation.id})">
-                                👁️ Gerenciar
+                                <i class="fas fa-cog"></i> Gerenciar
                             </button>
                             ${reservation.reserveStatus === 'CONFIRMED' ? `
                                 <button class="btn btn-sm btn-success" onclick="calendarSystem.performCheckIn(${reservation.id})">
-                                    ✅ Check-in
+                                    <i class="fas fa-sign-in-alt"></i> Check-in
                                 </button>
                                 <button class="btn btn-sm btn-danger" onclick="calendarSystem.cancelReservationById(${reservation.id})">
-                                    ❌ Cancelar
+                                    <i class="fas fa-times"></i> Cancelar
                                 </button>
                             ` : ''}
                             ${reservation.reserveStatus === 'CHECKED_IN' ? `

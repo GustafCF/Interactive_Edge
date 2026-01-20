@@ -28,7 +28,11 @@ class HotelSystem {
             const userEmail = localStorage.getItem('userInfo');
             
             if (userInfoElement && userEmail) {
-                userInfoElement.textContent = `Usuário: ${userEmail}`;
+                userInfoElement.innerHTML = `
+                    <i class="fas fa-user"></i> ${userEmail}
+                `;
+            } else if (userInfoElement) {
+                userInfoElement.innerHTML = '<i class="fas fa-user"></i> Usuário';
             }
         } catch (error) {
             console.error('Erro ao carregar informações do usuário:', error);

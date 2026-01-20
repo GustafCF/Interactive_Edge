@@ -1,7 +1,7 @@
 :root {
-    --orange: #8700a8;
-    --orange-light: #780096;
-    --orange-dark: #4e0072;;
+    --orange: #eb0000;
+    --orange-light: #960000;
+    --orange-dark: #720000;
     --green: #90EE90;
     --green-light: #A8E6A8;
     --green-dark: #7CCD7C;
@@ -36,7 +36,7 @@ body {
 /* HEADER CORRIGIDO */
 .header {
     background: linear-gradient(135deg, var(--orange), var(--orange-light));
-    color: rgb(255, 153, 0);
+    color: rgb(253, 191, 74);
     padding: 0.8rem 0;
     box-shadow: var(--shadow);
     position: relative;
@@ -59,7 +59,7 @@ body {
 }
 
 .nav-link {
-    color: rgb(255, 153, 0);
+    color: rgb(253, 191, 74);
     text-decoration: none;
     margin-left: 1rem;
     padding: 0.4rem 0.8rem;
@@ -182,8 +182,8 @@ body {
 }
 
 .footer {
-    background-color: rgb(26, 165, 119);
-    color: white;
+    background-color: rgb(253, 191, 74);
+    color: #720000;
     text-align: center;
     padding: 1rem 0;
 }
@@ -843,7 +843,158 @@ body {
     z-index: 1000;
 }
 
-/* RESPONSIVIDADE */
+/* ===== ESTILOS ADICIONAIS DO HTML ===== */
+
+/* Estilos para melhorias visuais */
+.search-result-item {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.guest-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+}
+
+.selected-date-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    margin-bottom: 0.25rem;
+}
+
+.date-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    margin-bottom: 0.25rem;
+}
+
+.guest-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+}
+
+.quick-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-card {
+    background: white;
+    padding: 1rem;
+    border-radius: 8px;
+    text-align: center;
+    border: 1px solid #e0e0e0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.stat-number {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #FF6B35;
+    margin-bottom: 0.25rem;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    color: #666;
+}
+
+.value-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.value-control-group {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.value-input {
+    flex: 1;
+}
+
+.value-breakdown {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 6px;
+    margin-top: 1rem;
+    border: 1px solid #e9ecef;
+}
+
+.breakdown-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.breakdown-item:last-child {
+    border-bottom: none;
+    font-weight: bold;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 2px solid #dee2e6;
+}
+
+.dates-management {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.current-dates {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 0.5rem;
+}
+
+.date-picker-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: end;
+}
+
+.guest-list {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 0.5rem;
+}
+
+/* ===== RESPONSIVIDADE ===== */
 @media (max-width: 768px) {
     .nav {
         float: none;
@@ -938,6 +1089,19 @@ body {
 
     .navigation-buttons button {
         width: 100%;
+    }
+
+    /* Estilos específicos para mobile */
+    .value-controls {
+        grid-template-columns: 1fr;
+    }
+    
+    .dates-management {
+        grid-template-columns: 1fr;
+    }
+    
+    .quick-stats {
+        grid-template-columns: repeat(2, 1fr);
     }
 }
 
@@ -1037,7 +1201,6 @@ body {
     }
 }
 
-/* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
     .btn,
     .action-card,

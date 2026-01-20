@@ -1,14 +1,14 @@
 :root {
-    --orange: #8700a8;
-    --orange-light: #780096;
-    --orange-dark: #4e0072;
+    --orange: #eb0000;
+    --orange-light: #960000;
+    --orange-dark: #720000;
     --green: #90EE90;
     --green-light: #A8E6A8;
     --green-dark: #7CCD7C;
-    --blue: #4A90E2;
-    --blue-light: #6AA7EC;
-    --purple: #9B59B6;
-    --purple-light: #AF7AC5;
+    --blue: #ffa600;
+    --blue-light: #ffb224;
+    --purple: #e90000;
+    --purple-light: #a50000;
     --gray-light: #f4f4f4;
     --gray: #000000;
     --white: #fff;
@@ -40,7 +40,7 @@ body {
 /* Header - Ajustado para ficar igual aos outros */
 .header {
     background: linear-gradient(135deg, var(--orange), var(--orange-light));
-    color: rgb(255, 153, 0);
+    color: rgb(253, 191, 74);
     padding: 0.8rem 0;
     box-shadow: var(--shadow);
     position: relative;
@@ -62,7 +62,7 @@ body {
 }
 
 .nav-link {
-    color: rgb(255, 153, 0);
+    color: rgb(253, 191, 74);
     text-decoration: none;
     margin-left: 1rem;
     padding: 0.4rem 0.8rem;
@@ -156,8 +156,8 @@ body {
 
 /* Footer */
 .footer {
-    background-color: rgb(27, 206, 206);
-    color: rgb(201, 114, 0);
+    background-color: rgb(253, 191, 74);
+    color: #720000;
     text-align: center;
     padding: 1rem 0;
 }

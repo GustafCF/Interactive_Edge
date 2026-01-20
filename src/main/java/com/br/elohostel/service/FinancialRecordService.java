@@ -45,7 +45,6 @@ public class FinancialRecordService {
         this.roomRepo = roomRepo;
     }
 
-    // ✅ ADICIONE ESTES MÉTODOS GETTERS
     public ReserveRepository getReserveRepository() {
         return reserveRepo;
     }
@@ -63,16 +62,11 @@ public class FinancialRecordService {
         logger.info("🔄 Iniciando processamento de registros financeiros...");
         
         LocalDate today = LocalDate.now();
-        
-        // ✅ CORREÇÃO: Processar HOJE em vez de ontem
         processDailyRecord(today);
-        
-        // Processar mês anterior se for o primeiro dia do mês
         if (today.getDayOfMonth() == 1) {
             processMonthlyRecord(today.minusMonths(1));
         }
-        
-        // Processar ano anterior se for o primeiro dia do ano
+
         if (today.getMonthValue() == 1 && today.getDayOfMonth() == 1) {
             processAnnualRecord(today.getYear() - 1);
         }
@@ -83,17 +77,11 @@ public class FinancialRecordService {
     @Transactional
     public FinancialRecord processDailyRecord(LocalDate date) {
         logger.info("📅 Processando registro diário para: " + date);
-        
-        // Buscar ou criar registro diário
         FinancialRecord dailyRecord = financialRecordRepo
             .findByRecordDateAndPeriodType(date, PeriodType.DIARIO)
             .orElse(new FinancialRecord(date, PeriodType.DIARIO));
-        
-        // ✅ Buscar apenas reservas NÃO PROCESSADAS para a data
         List<Reserve> dailyReservations = findUnprocessedReservationsForDate(date);
-        
         if (!dailyReservations.isEmpty()) {
-            // Calcular métricas e marcar como processadas
             calculateMetrics(dailyRecord, dailyReservations, date, PeriodType.DIARIO);
             FinancialRecord savedRecord = financialRecordRepo.save(dailyRecord);
             logger.info("✅ Registro diário salvo: " + date + " - " + 
@@ -105,27 +93,17 @@ public class FinancialRecordService {
         }
     }
 
-    /**
-     * Processa registro mensal para um mês específico
-     */
     @Transactional
     public FinancialRecord processMonthlyRecord(LocalDate anyDateInMonth) {
         YearMonth yearMonth = YearMonth.from(anyDateInMonth);
         LocalDate firstDayOfMonth = yearMonth.atDay(1);
-        
-        logger.info("📊 Processando registro mensal para: " + yearMonth);
-        
-        // Buscar ou criar registro mensal
         FinancialRecord monthlyRecord = financialRecordRepo
             .findByRecordDateAndPeriodType(firstDayOfMonth, PeriodType.MENSAL)
             .orElse(new FinancialRecord(firstDayOfMonth, PeriodType.MENSAL));
-        
-        // ✅ Buscar apenas reservas NÃO PROCESSADAS do mês
         List<Reserve> monthlyReservations = findUnprocessedReservationsForMonth(
             yearMonth.getYear(), yearMonth.getMonthValue());
         
         if (!monthlyReservations.isEmpty()) {
-            // Calcular métricas e marcar como processadas
             calculateMetrics(monthlyRecord, monthlyReservations, firstDayOfMonth, PeriodType.MENSAL);
             FinancialRecord savedRecord = financialRecordRepo.save(monthlyRecord);
             logger.info("✅ Registro mensal salvo: " + yearMonth + " - " + 
@@ -137,25 +115,17 @@ public class FinancialRecordService {
         }
     }
 
-    /**
-     * Processa registro anual para um ano específico
-     */
     @Transactional
     public FinancialRecord processAnnualRecord(int year) {
         LocalDate firstDayOfYear = LocalDate.of(year, 1, 1);
         
         logger.info("📈 Processando registro anual para: " + year);
-        
-        // Buscar ou criar registro anual
         FinancialRecord annualRecord = financialRecordRepo
             .findByRecordDateAndPeriodType(firstDayOfYear, PeriodType.ANUAL)
             .orElse(new FinancialRecord(firstDayOfYear, PeriodType.ANUAL));
-        
-        // ✅ Buscar apenas reservas NÃO PROCESSADAS do ano
         List<Reserve> annualReservations = findUnprocessedReservationsForYear(year);
         
         if (!annualReservations.isEmpty()) {
-            // Calcular métricas e marcar como processadas
             calculateMetrics(annualRecord, annualReservations, firstDayOfYear, PeriodType.ANUAL);
             FinancialRecord savedRecord = financialRecordRepo.save(annualRecord);
             logger.info("✅ Registro anual salvo: " + year + " - " + 
@@ -167,17 +137,8 @@ public class FinancialRecordService {
         }
     }
 
-    /**
-     * ✅ MÉTODO CORRIGIDO: Buscar apenas reservas NÃO PROCESSADAS com logs detalhados
-     */
     private List<Reserve> findUnprocessedReservationsForDate(LocalDate date) {
-        logger.info("🔍 Buscando reservas não processadas para: " + date);
-        
-        // Buscar TODAS as reservas confirmadas primeiro para debug
         List<Reserve> allConfirmed = reserveRepo.findByReserveStatus(ReserveStatus.CONFIRMED);
-        logger.info("📊 Total de reservas confirmadas: " + allConfirmed.size());
-        
-        // Log detalhado de TODAS as reservas confirmadas
         for (Reserve reserve : allConfirmed) {
             logger.info("📋 Reserva #" + reserve.getId() + 
                        " - Status: " + reserve.getReserveStatus() +
@@ -185,20 +146,14 @@ public class FinancialRecordService {
                        " - Dias: " + reserve.getReservedDays() +
                        " - Contém " + date + ": " + (reserve.getReservedDays() != null && reserve.getReservedDays().contains(date)));
         }
-    
-        // Filtrar reservas que contêm a data especificada
+
         List<Reserve> forDate = allConfirmed.stream()
             .filter(reserve -> reserve.getReservedDays() != null && reserve.getReservedDays().contains(date))
             .collect(Collectors.toList());
-        
-        logger.info("📅 Reservas para a data " + date + ": " + forDate.size());
-        
-        // Filtrar apenas as não processadas
+
         List<Reserve> unprocessed = forDate.stream()
             .filter(reserve -> !Boolean.TRUE.equals(reserve.getFinancialProcessed()))
             .collect(Collectors.toList());
-        
-        logger.info("🔄 Reservas não processadas: " + unprocessed.size());
         
         return unprocessed;
     }
@@ -233,9 +188,6 @@ public class FinancialRecordService {
         return reservations;
     }
 
-    /**
-     * ✅ MÉTODO CORRIGIDO: Calcular valor diário proporcional
-     */
     private BigDecimal calculateDailyRevenue(Reserve reservation, LocalDate date) {
         BigDecimal totalReservationValue = reservation.calculateTotalValue();
         int totalDays = reservation.getNumberOfDays();
@@ -244,21 +196,15 @@ public class FinancialRecordService {
             return BigDecimal.ZERO;
         }
         
-        // Dividir o valor total igualmente pelos dias
         return totalReservationValue.divide(
             BigDecimal.valueOf(totalDays), 2, RoundingMode.HALF_UP);
     }
 
-    /**
-     * ✅ MÉTODO CORRIGIDO: Calcular métricas e marcar reservas como processadas
-     */
     private void calculateMetrics(FinancialRecord record, List<Reserve> reservations, 
                             LocalDate referenceDate, PeriodType periodType) {
 
         logger.info("🔍 Calculando métricas para " + periodType + " - " + referenceDate + 
                    " - " + reservations.size() + " reservas não processadas encontradas");
-
-        // Resetar valores (apenas para registro novo, não acumular)
         if (record.getId() == null) {
             record.setTotalRevenue(BigDecimal.ZERO);
             record.setTotalReservations(0);
@@ -267,32 +213,19 @@ public class FinancialRecordService {
             record.getRoomTypeRevenues().clear();
         }
         
-        // Calcular totais apenas para reservas não processadas
         for (Reserve reservation : reservations) {
-            // ✅ CORREÇÃO: Usar valor DIÁRIO, não valor total da reserva
             BigDecimal dailyRevenue = calculateDailyRevenue(reservation, referenceDate);
             int roomCount = reservation.getRooms().size();
-            
-            logger.info("💰 Processando Reserva #" + reservation.getId() + 
-                       " - Valor Diário: " + dailyRevenue + 
-                       " - Valor Total: " + reservation.calculateTotalValue() +
-                       " - Quartos: " + roomCount +
-                       " - Dias: " + reservation.getNumberOfDays() +
-                       " - Hóspedes: " + reservation.getGuest().size());
-
-            // ✅ Adicionar valores DIÁRIOS
             record.addRevenue(dailyRevenue);
             record.incrementReservations();
             record.addGuests(reservation.getGuest().size());
-            record.addNights(roomCount); // 1 noite por quarto para o dia
-            
-            // ✅ CORREÇÃO: Distribuir valor diário por tipo de quarto
+            record.addNights(roomCount);
+
             if (!reservation.getRooms().isEmpty()) {
                 if (roomCount == 1) {
                     Room room = reservation.getRooms().iterator().next();
                     addRoomTypeRevenue(record, room.getRoomType(), dailyRevenue, 1, 1);
                 } else {
-                    // Dividir o valor diário igualmente entre os quartos
                     BigDecimal valuePerRoom = dailyRevenue.divide(
                         BigDecimal.valueOf(roomCount), 2, RoundingMode.HALF_UP);
                     
@@ -302,7 +235,6 @@ public class FinancialRecordService {
                 }
             }
             
-            // ✅ MARCAR RESERVA COMO PROCESSADA
             reservation.setFinancialProcessed(true);
             reserveRepo.save(reservation);
             logger.info("✅ Reserva #" + reservation.getId() + " marcada como processada");
@@ -335,14 +267,12 @@ public class FinancialRecordService {
     }
 
     private void calculateDerivedMetrics(FinancialRecord record, LocalDate referenceDate, PeriodType periodType) {
-        // ADR (Average Daily Rate)
         if (record.getTotalNights() > 0) {
             BigDecimal adr = record.getTotalRevenue()
                 .divide(BigDecimal.valueOf(record.getTotalNights()), 2, RoundingMode.HALF_UP);
             record.setAverageDailyRate(adr);
         }
         
-        // Taxa de Ocupação
         int totalRooms = roomRepo.findAll().size();
         int daysInPeriod = getDaysInPeriod(periodType, referenceDate);
         int availableRoomNights = totalRooms * daysInPeriod;
@@ -354,7 +284,6 @@ public class FinancialRecordService {
             record.setOccupancyRate(occupancy);
         }
         
-        // RevPAR (Revenue Per Available Room)
         if (totalRooms > 0 && daysInPeriod > 0) {
             BigDecimal revPAR = record.getTotalRevenue()
                 .divide(BigDecimal.valueOf(totalRooms * daysInPeriod), 2, RoundingMode.HALF_UP);
@@ -375,18 +304,13 @@ public class FinancialRecordService {
         }
     }
 
-    /**
-     * ✅ MÉTODO PARA REPROCESSAMENTO MANUAL
-     */
     @Transactional
     public void reprocessReservations(LocalDate startDate, LocalDate endDate) {
         logger.info("🔄 Reprocessamento manual de reservas de " + startDate + " a " + endDate);
-        
-        // Buscar reservas já processadas no período para reprocessar
+
         List<Reserve> reservationsToReprocess = reserveRepo.findByReserveStatusAndProcessedAndDateRange(
             ReserveStatus.CONFIRMED, true, startDate, endDate);
         
-        // Marcar como não processadas para reprocessamento
         for (Reserve reservation : reservationsToReprocess) {
             reservation.setFinancialProcessed(false);
         }
@@ -394,7 +318,6 @@ public class FinancialRecordService {
         
         logger.info("✅ " + reservationsToReprocess.size() + " reservas marcadas para reprocessamento");
         
-        // Reprocessar os registros financeiros do período
         for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
             processDailyRecord(date);
         }
@@ -402,9 +325,6 @@ public class FinancialRecordService {
         logger.info("✅ Reprocessamento manual concluído");
     }
 
-    /**
-     * ✅ MÉTODO PARA RESETAR FLAGS (apenas desenvolvimento)
-     */
     @Transactional
     public void resetAllProcessedFlags() {
         logger.info("🔄 Resetando todas as flags de processamento...");
@@ -418,9 +338,6 @@ public class FinancialRecordService {
         logger.info("✅ " + allReservations.size() + " reservas marcadas como não processadas");
     }
 
-    /**
-     * ✅ MÉTODO PARA MARCAR TODAS AS RESERVAS COMO PROCESSADAS
-     */
     @Transactional
     public void markAllReservationsAsProcessed() {
         logger.info("📝 Marcando todas as reservas confirmadas como processadas...");
@@ -429,8 +346,6 @@ public class FinancialRecordService {
         
         logger.info("✅ " + updatedCount + " reservas confirmadas marcadas como processadas");
     }
-    
-    // ========== MÉTODOS DE CONSULTA ==========
     
     public List<FinancialRecord> getDailyRecords(LocalDate startDate, LocalDate endDate) {
         return financialRecordRepo.findByPeriodTypeAndRecordDateBetween(
@@ -451,13 +366,10 @@ public class FinancialRecordService {
         LocalDate firstDayOfYear = today.withDayOfYear(1);
         
         Map<String, Object> dashboard = new HashMap<>();
-        
-        // ✅ CORREÇÃO: Buscar o registro financeiro de HOJE para as métricas
         FinancialRecord todayRecord = financialRecordRepo
             .findByRecordDateAndPeriodType(today, PeriodType.DIARIO)
             .orElse(new FinancialRecord(today, PeriodType.DIARIO));
         
-        // ✅ CORREÇÃO: Usar os valores do registro de HOJE para as métricas
         dashboard.put("dailyRevenue", todayRecord.getTotalRevenue() != null ? todayRecord.getTotalRevenue() : BigDecimal.ZERO);
         dashboard.put("monthlyRevenue", financialRecordRepo
             .sumTotalRevenueByPeriodTypeAndDateRange(PeriodType.DIARIO, firstDayOfMonth, today) != null ? 
@@ -466,12 +378,10 @@ public class FinancialRecordService {
             .sumTotalRevenueByPeriodTypeAndDateRange(PeriodType.DIARIO, firstDayOfYear, today) != null ? 
             financialRecordRepo.sumTotalRevenueByPeriodTypeAndDateRange(PeriodType.DIARIO, firstDayOfYear, today) : BigDecimal.ZERO);
         
-        // ✅ PREVISÃO PARA HOJE (se não houver dados reais)
         BigDecimal todayForecast = calculateTodayForecast();
         dashboard.put("todayForecast", todayForecast);
         dashboard.put("hasActualData", todayRecord.getTotalRevenue().compareTo(BigDecimal.ZERO) > 0);
         
-        // ✅ CORREÇÃO: Métricas calculadas do registro de HOJE
         dashboard.put("occupancyRate", todayRecord.getOccupancyRate() != null ? 
             todayRecord.getOccupancyRate().setScale(1, RoundingMode.HALF_UP) : BigDecimal.ZERO);
         dashboard.put("averageDailyRate", todayRecord.getAverageDailyRate() != null ? 
@@ -481,34 +391,19 @@ public class FinancialRecordService {
         dashboard.put("totalNights", todayRecord.getTotalNights() != null ? 
             todayRecord.getTotalNights() : 0);
         
-        // Reservas hoje
         long todayReservations = findUnprocessedReservationsForDate(today).size();
         dashboard.put("todayReservations", todayReservations);
-        
-        // Ocupação atual
         long occupiedRooms = roomRepo.findAll().stream()
             .filter(room -> room.getRoomStatus().name().equals("OCCUPIED"))
             .count();
         dashboard.put("occupiedRooms", occupiedRooms);
-        
-        // ✅ DEBUG: Log para verificar os valores
-        logger.info("📊 Dashboard - Ocupação: " + todayRecord.getOccupancyRate() + 
-                   " - ADR: " + todayRecord.getAverageDailyRate() + 
-                   " - RevPAR: " + todayRecord.getRevPAR() +
-                   " - Receita Hoje: " + todayRecord.getTotalRevenue() +
-                   " - Previsão Hoje: " + todayForecast);
-        
         return dashboard;
     }
 
-    /**
-     * ✅ Calcular previsão para hoje baseada em reservas futuras
-     */
     private BigDecimal calculateTodayForecast() {
         LocalDate today = LocalDate.now();
         List<Reserve> allConfirmed = reserveRepo.findByReserveStatus(ReserveStatus.CONFIRMED);
-        
-        // Buscar reservas que começam hoje ou no futuro
+
         List<Reserve> upcomingReservations = allConfirmed.stream()
             .filter(reserve -> reserve.getReservedDays() != null && !reserve.getReservedDays().isEmpty())
             .filter(reserve -> {
@@ -532,43 +427,28 @@ public class FinancialRecordService {
         financialRecordRepo.deleteById(id);
     }
 
-    /**
-     * ✅ MÉTODO PARA PROCESSAMENTO MANUAL DE UM DIA ESPECÍFICO
-     */
     @Transactional
     public FinancialRecord processSpecificDate(LocalDate date) {
-        logger.info("🎯 Processamento manual para data específica: " + date);
         return processDailyRecord(date);
     }
 
-    /**
-     * ✅ NOVO MÉTODO: Forçar processamento de uma data específica (ignora flag de processado)
-     */
     @Transactional
     public FinancialRecord forceProcessDate(LocalDate date) {
-        logger.info("⚡ Forçando processamento para: " + date);
-        
-        // Buscar TODAS as reservas confirmadas para a data, ignorando a flag de processado
         List<Reserve> allConfirmed = reserveRepo.findByReserveStatus(ReserveStatus.CONFIRMED);
         List<Reserve> reservations = allConfirmed.stream()
             .filter(reserve -> reserve.getReservedDays() != null && reserve.getReservedDays().contains(date))
             .collect(Collectors.toList());
-        
-        logger.info("📊 Encontradas " + reservations.size() + " reservas para " + date);
-        
         FinancialRecord record = financialRecordRepo
             .findByRecordDateAndPeriodType(date, PeriodType.DIARIO)
             .orElse(new FinancialRecord(date, PeriodType.DIARIO));
         
         if (!reservations.isEmpty()) {
-            // Resetar o registro antes de calcular
             record.setTotalRevenue(BigDecimal.ZERO);
             record.setTotalReservations(0);
             record.setTotalGuests(0);
             record.setTotalNights(0);
             record.getRoomTypeRevenues().clear();
             
-            // Calcular métricas (não marca como processado para evitar conflito)
             calculateMetricsForce(record, reservations, date, PeriodType.DIARIO);
             FinancialRecord savedRecord = financialRecordRepo.save(record);
             logger.info("✅ Registro forçado salvo: " + date + " - " + 
@@ -580,34 +460,18 @@ public class FinancialRecordService {
         }
     }
 
-    /**
-     * ✅ MÉTODO AUXILIAR: Calcular métricas sem marcar como processado
-     */
     private void calculateMetricsForce(FinancialRecord record, List<Reserve> reservations, 
                                 LocalDate referenceDate, PeriodType periodType) {
 
-        logger.info("🔍 Calculando métricas FORÇADAS para " + periodType + " - " + referenceDate + 
-                   " - " + reservations.size() + " reservas encontradas");
-
-        // Calcular totais para todas as reservas (ignorando flag de processado)
         for (Reserve reservation : reservations) {
             BigDecimal dailyRevenue = calculateDailyRevenue(reservation, referenceDate);
             int roomCount = reservation.getRooms().size();
             
-            logger.info("💰 Processando FORÇADO Reserva #" + reservation.getId() + 
-                       " - Valor Diário: " + dailyRevenue + 
-                       " - Valor Total: " + reservation.calculateTotalValue() +
-                       " - Quartos: " + roomCount +
-                       " - Dias: " + reservation.getNumberOfDays() +
-                       " - Processada: " + reservation.getFinancialProcessed());
-
-            // Adicionar valores DIÁRIOS
             record.addRevenue(dailyRevenue);
             record.incrementReservations();
             record.addGuests(reservation.getGuest().size());
             record.addNights(roomCount);
-            
-            // Distribuir valor diário por tipo de quarto
+
             if (!reservation.getRooms().isEmpty()) {
                 if (roomCount == 1) {
                     Room room = reservation.getRooms().iterator().next();
@@ -621,26 +485,14 @@ public class FinancialRecordService {
                     }
                 }
             }
-            
-            // ✅ NÃO marcar como processada no processamento forçado
         }
-        
-        logger.info("📊 Métricas finais FORÇADAS - Receita: " + record.getTotalRevenue() +
-                   " - Reservas: " + record.getTotalReservations() +
-                   " - Noites: " + record.getTotalNights() +
-                   " - Hóspedes: " + record.getTotalGuests());
         
         calculateDerivedMetrics(record, referenceDate, periodType);
         record.setUpdatedAt(LocalDateTime.now());
     }
 
-    /**
-     * ✅ NOVO MÉTODO: Debug detalhado das reservas
-     */
     @Transactional
     public void debugReservations() {
-        logger.info("🐛 DEBUG: Analisando reservas no banco...");
-        
         List<Reserve> allReservations = reserveRepo.findAll();
         logger.info("📊 Total de reservas: " + allReservations.size());
         
@@ -668,9 +520,6 @@ public class FinancialRecordService {
         }
     }
 
-    /**
-     * ✅ NOVO MÉTODO: Processar uma data específica com opção de forçar
-     */
     @Transactional
     public FinancialRecord processDate(LocalDate date, boolean force) {
         if (force) {
@@ -680,9 +529,6 @@ public class FinancialRecordService {
         }
     }
 
-    /**
-     * ✅ NOVO MÉTODO: Verificar status de uma reserva específica
-     */
     public Map<String, Object> checkReservationStatus(Long reservationId) {
         Reserve reservation = reserveRepo.findById(reservationId)
             .orElseThrow(() -> new RuntimeException("Reserva não encontrada: " + reservationId));
@@ -697,7 +543,6 @@ public class FinancialRecordService {
         status.put("numberOfGuests", reservation.getGuest().size());
         status.put("numberOfRooms", reservation.getRooms().size());
         
-        // Verificar se existe registro financeiro para as datas
         List<FinancialRecord> records = new ArrayList<>();
         for (LocalDate date : reservation.getReservedDays()) {
             financialRecordRepo.findByRecordDateAndPeriodType(date, PeriodType.DIARIO)
@@ -708,9 +553,6 @@ public class FinancialRecordService {
         return status;
     }
 
-    /**
-     * ✅ NOVO: Processar previsão financeira para datas futuras
-     */
     @Transactional
     public FinancialRecord processForecast(LocalDate date) {
         logger.info("🔮 Processando previsão para: " + date);
@@ -719,7 +561,6 @@ public class FinancialRecordService {
             .findByRecordDateAndPeriodType(date, PeriodType.DIARIO)
             .orElse(new FinancialRecord(date, PeriodType.DIARIO));
         
-        // Buscar TODAS as reservas confirmadas para a data (incluindo futuras)
         List<Reserve> allConfirmed = reserveRepo.findByReserveStatus(ReserveStatus.CONFIRMED);
         List<Reserve> reservationsForDate = allConfirmed.stream()
             .filter(reserve -> reserve.getReservedDays() != null && reserve.getReservedDays().contains(date))
@@ -728,7 +569,6 @@ public class FinancialRecordService {
         logger.info("📊 Previsão - " + reservationsForDate.size() + " reservas para " + date);
         
         if (!reservationsForDate.isEmpty()) {
-            // Usar o método de força para não marcar como processado
             calculateMetricsForce(forecastRecord, reservationsForDate, date, PeriodType.DIARIO);
             FinancialRecord savedRecord = financialRecordRepo.save(forecastRecord);
             logger.info("✅ Previsão salva: " + date + " - Receita prevista: " + savedRecord.getTotalRevenue());
@@ -739,9 +579,6 @@ public class FinancialRecordService {
         }
     }
 
-    /**
-     * ✅ NOVO: Processar previsão para um período
-     */
     @Transactional
     public List<FinancialRecord> processForecastPeriod(LocalDate startDate, LocalDate endDate) {
         logger.info("🔮 Processando previsão para período: " + startDate + " a " + endDate);
@@ -757,16 +594,11 @@ public class FinancialRecordService {
         return records;
     }
 
-    /**
-     * ✅ NOVO: Processar todas as reservas existentes
-     */
     @Transactional
     public String processAllReservations() {
         logger.info("🔄 Processando TODAS as reservas existentes...");
         
         LocalDate today = LocalDate.now();
-        
-        // Processar todas as datas que têm reservas
         List<Reserve> allReservations = reserveRepo.findByReserveStatus(ReserveStatus.CONFIRMED);
         Set<LocalDate> allReservedDates = allReservations.stream()
             .filter(reserve -> reserve.getReservedDays() != null)
@@ -777,7 +609,6 @@ public class FinancialRecordService {
         
         int processedCount = 0;
         for (LocalDate date : allReservedDates) {
-            // Usar processamento forçado para garantir que todas as datas sejam processadas
             forceProcessDate(date);
             processedCount++;
         }

@@ -55,4 +55,9 @@ public class HomeController {
     public String financas() {
         return "financial";
     }
+
+    @GetMapping("/funcionarios")
+    public String funcionarios() {
+        return "funcionarios";
+    }
 }

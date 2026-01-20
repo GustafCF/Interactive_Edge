@@ -27,3 +27,7 @@ Fórmula: ADR × Taxa de Ocupação ou Receita total ÷ Total de quartos dispon�
 Exemplo: ADR R$ 142,86 × 70% ocupação = R$ 100,00 de RevPAR
 
 Importância: Métrica mais importante - combina preço e ocupação
+
+### Biblioteca de Icons
+
+link: https://fontawesome.com/icons
