@@ -66,11 +66,9 @@ public class RoomService {
         if (room.getBeds().isEmpty()) {
             throw new IllegalStateException("O quarto não possui camas para remover");
         }
-
         Optional<Bed> availableBedToRemove = room.getBeds().stream()
                 .filter(bed -> bed.getBedStatus() == BedStatus.VAGUE)
                 .findFirst();
-
         if (availableBedToRemove.isEmpty()) {
             throw new IllegalStateException("Não há camas vagas disponíveis para remoção no quarto " + room.getNumber());
         }
@@ -94,7 +92,7 @@ public class RoomService {
         if (!bedOccupations.isEmpty()) {
             bedOccupationRepo.deleteAll(bedOccupations);
         }
-        
+
         bedRepo.delete(bedToRemove);
 
         return room;

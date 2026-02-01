@@ -7,10 +7,21 @@ class CalendarSystem {
         this.reservedDates = new Map();
         this.allReservations = [];
         this.allRooms = [];
+        this.allGuests = [];
         this.currentReservationId = null;
         this.expandedDate = null;
+        this.guestSearchTimeout = null;
+        this.roomSearchTimeout = null;
+        this.filteredGuests = [];
+        this.filteredRooms = [];
+        this.selectedGuest = null;
+        this.selectedRoom = null;
+        this.newGuestSearchTimeout = null;
+        this.pendingReservationData = null;
+        
         this.initEventListeners();
         this.checkAuthentication();
+        this.loadGuests();
         this.loadRooms();
         this.loadCalendar();
         this.loadReservations();
@@ -31,7 +42,7 @@ class CalendarSystem {
         this.loadUserInfo();
     }
 
-   loadUserInfo() {
+    loadUserInfo() {
         try {
             const userInfoElement = document.getElementById('userInfo');
             const userEmail = localStorage.getItem('userInfo');
@@ -39,12 +50,23 @@ class CalendarSystem {
             
             if (userInfoElement) {
                 const displayName = userName || userEmail || 'Usuário';
-                userInfoElement.innerHTML = `
-                    <i class="fas fa-user"></i> ${displayName}
-                `;
+                userInfoElement.innerHTML = `<i class="fas fa-user"></i> ${displayName}`;
             }
         } catch (error) {
             console.error('Erro ao carregar informações do usuário:', error);
+        }
+    }
+
+    async loadGuests() {
+        try {
+            const response = await this.makeAuthenticatedRequest('/guest/all');
+            if (response.ok) {
+                this.allGuests = await response.json();
+            } else {
+                console.error('Erro ao carregar hóspedes');
+            }
+        } catch (error) {
+            console.error('Erro ao carregar hóspedes:', error);
         }
     }
 
@@ -53,7 +75,6 @@ class CalendarSystem {
             const response = await this.makeAuthenticatedRequest('/room/all');
             if (response.ok) {
                 this.allRooms = await response.json();
-                console.log('Quartos carregados:', this.allRooms.length);
                 this.loadCalendar();
             } else {
                 console.error('Erro ao carregar quartos');
@@ -75,6 +96,389 @@ class CalendarSystem {
         document.getElementById('newReservationBtn').addEventListener('click', () => this.toggleReservationForm());
         document.getElementById('cancelReservationBtn').addEventListener('click', () => this.cancelReservation());
         document.getElementById('reserveForm').addEventListener('submit', (e) => this.handleReservation(e));
+        
+        this.initAutocompleteListeners();
+        setTimeout(() => this.showReservationPreview(), 500);
+    }
+
+    initAutocompleteListeners() {
+        const guestInput = document.getElementById('guestName');
+        const roomInput = document.getElementById('roomNumber');
+
+        guestInput.addEventListener('input', (e) => this.searchGuests(e.target.value));
+        guestInput.addEventListener('keydown', (e) => this.handleGuestKeydown(e));
+        guestInput.addEventListener('focus', () => this.showGuestSuggestions());
+        guestInput.addEventListener('blur', () => {
+            setTimeout(() => this.hideGuestSuggestions(), 200);
+        });
+
+        roomInput.addEventListener('input', (e) => this.searchRooms(e.target.value));
+        roomInput.addEventListener('keydown', (e) => this.handleRoomKeydown(e));
+        roomInput.addEventListener('focus', () => this.showRoomSuggestions());
+        roomInput.addEventListener('blur', () => {
+            setTimeout(() => this.hideRoomSuggestions(), 200);
+        });
+    }
+
+    async searchGuests(query) {
+        clearTimeout(this.guestSearchTimeout);
+        
+        this.guestSearchTimeout = setTimeout(() => {
+            if (!query || query.length < 2) {
+                this.filteredGuests = this.allGuests.slice(0, 10);
+                this.showGuestSuggestions();
+                return;
+            }
+
+            const lowerQuery = query.toLowerCase();
+            this.filteredGuests = this.allGuests.filter(guest => 
+                guest.name.toLowerCase().includes(lowerQuery) ||
+                (guest.rg && guest.rg.toLowerCase().includes(lowerQuery)) ||
+                (guest.email && guest.email.toLowerCase().includes(lowerQuery)) ||
+                (guest.phone && guest.phone.toLowerCase().includes(lowerQuery))
+            ).slice(0, 10);
+
+            this.showGuestSuggestions();
+            this.updatePreview();
+        }, 300);
+    }
+
+    async searchRooms(query) {
+        clearTimeout(this.roomSearchTimeout);
+        
+        this.roomSearchTimeout = setTimeout(() => {
+            if (!query) {
+                this.filteredRooms = this.allRooms
+                    .slice(0, 10)
+                    .sort((a, b) => a.number - b.number);
+                this.showRoomSuggestions();
+                this.updatePreview();
+                return;
+            }
+
+            const roomNumber = parseInt(query);
+            if (isNaN(roomNumber)) {
+                const lowerQuery = query.toLowerCase();
+                this.filteredRooms = this.allRooms.filter(room => 
+                    room.number.toString().includes(query) ||
+                    (room.roomTypeDescription && 
+                     room.roomTypeDescription.toLowerCase().includes(lowerQuery))
+                ).slice(0, 10);
+                this.showRoomSuggestions();
+                this.updatePreview();
+                return;
+            }
+
+            this.filteredRooms = this.allRooms.filter(room => 
+                room.number.toString().includes(query)
+            ).slice(0, 10);
+
+            this.showRoomSuggestions();
+            this.updatePreview();
+        }, 300);
+    }
+
+    showGuestSuggestions() {
+        const suggestionsContainer = document.getElementById('guestSuggestions');
+        const guestInput = document.getElementById('guestName');
+        
+        if (this.filteredGuests.length === 0) {
+            suggestionsContainer.classList.remove('show');
+            return;
+        }
+
+        const suggestionsHTML = this.filteredGuests.map((guest, index) => `
+            <div class="suggestion-item ${index === 0 ? 'highlighted' : ''}" 
+                 data-guest-id="${guest.id}"
+                 data-guest-name="${this.escapeHtml(guest.name)}"
+                 data-guest-rg="${this.escapeHtml(guest.rg || '')}"
+                 data-guest-phone="${this.escapeHtml(guest.phone || '')}">
+                <div><strong>${this.escapeHtml(guest.name)}</strong></div>
+                ${guest.rg ? `<div class="suggestion-details">RG: ${this.escapeHtml(guest.rg)}</div>` : ''}
+                ${guest.phone ? `<div class="suggestion-details">Tel: ${this.escapeHtml(guest.phone)}</div>` : ''}
+            </div>
+        `).join('');
+
+        suggestionsContainer.innerHTML = suggestionsHTML;
+        suggestionsContainer.classList.add('show');
+
+        suggestionsContainer.querySelectorAll('.suggestion-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                const guestName = e.currentTarget.getAttribute('data-guest-name');
+                guestInput.value = guestName;
+                guestInput.classList.add('selected');
+                this.selectedGuest = guestName;
+                this.hideGuestSuggestions();
+                this.updatePreview();
+            });
+        });
+    }
+
+    showRoomSuggestions() {
+        const suggestionsContainer = document.getElementById('roomSuggestions');
+        const roomInput = document.getElementById('roomNumber');
+        
+        if (this.filteredRooms.length === 0) {
+            suggestionsContainer.classList.remove('show');
+            return;
+        }
+
+        const suggestionsHTML = this.filteredRooms.map((room, index) => `
+            <div class="suggestion-item ${index === 0 ? 'highlighted' : ''}" 
+                 data-room-number="${room.number}"
+                 data-room-type="${room.roomType || 'N/A'}"
+                 data-room-price="${room.price || 0}">
+                <div><strong>Quarto ${room.number}</strong></div>
+                <div class="suggestion-details">
+                    ${room.roomTypeDescription || 'Tipo: N/A'} | 
+                    R$ ${room.price ? parseFloat(room.price).toFixed(2) : '0,00'}
+                </div>
+            </div>
+        `).join('');
+
+        suggestionsContainer.innerHTML = suggestionsHTML;
+        suggestionsContainer.classList.add('show');
+
+        suggestionsContainer.querySelectorAll('.suggestion-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                const roomNumber = e.currentTarget.getAttribute('data-room-number');
+                roomInput.value = roomNumber;
+                roomInput.classList.add('selected');
+                this.selectedRoom = parseInt(roomNumber);
+                this.hideRoomSuggestions();
+                this.updatePreview();
+            });
+        });
+    }
+
+    hideGuestSuggestions() {
+        document.getElementById('guestSuggestions').classList.remove('show');
+    }
+
+    hideRoomSuggestions() {
+        document.getElementById('roomSuggestions').classList.remove('show');
+    }
+
+    handleGuestKeydown(e) {
+        const suggestions = document.querySelectorAll('#guestSuggestions .suggestion-item');
+        if (suggestions.length === 0) return;
+
+        const highlighted = document.querySelector('#guestSuggestions .suggestion-item.highlighted');
+        let nextIndex = 0;
+
+        switch (e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                if (highlighted) {
+                    nextIndex = (Array.from(suggestions).indexOf(highlighted) + 1) % suggestions.length;
+                }
+                this.updateGuestHighlight(nextIndex);
+                break;
+
+            case 'ArrowUp':
+                e.preventDefault();
+                if (highlighted) {
+                    nextIndex = (Array.from(suggestions).indexOf(highlighted) - 1 + suggestions.length) % suggestions.length;
+                } else {
+                    nextIndex = suggestions.length - 1;
+                }
+                this.updateGuestHighlight(nextIndex);
+                break;
+
+            case 'Enter':
+                e.preventDefault();
+                if (highlighted) {
+                    const guestName = highlighted.getAttribute('data-guest-name');
+                    document.getElementById('guestName').value = guestName;
+                    document.getElementById('guestName').classList.add('selected');
+                    this.selectedGuest = guestName;
+                    this.hideGuestSuggestions();
+                    this.updatePreview();
+                }
+                break;
+
+            case 'Escape':
+                this.hideGuestSuggestions();
+                break;
+        }
+    }
+
+    handleRoomKeydown(e) {
+        const suggestions = document.querySelectorAll('#roomSuggestions .suggestion-item');
+        if (suggestions.length === 0) return;
+
+        const highlighted = document.querySelector('#roomSuggestions .suggestion-item.highlighted');
+        let nextIndex = 0;
+
+        switch (e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                if (highlighted) {
+                    nextIndex = (Array.from(suggestions).indexOf(highlighted) + 1) % suggestions.length;
+                }
+                this.updateRoomHighlight(nextIndex);
+                break;
+
+            case 'ArrowUp':
+                e.preventDefault();
+                if (highlighted) {
+                    nextIndex = (Array.from(suggestions).indexOf(highlighted) - 1 + suggestions.length) % suggestions.length;
+                } else {
+                    nextIndex = suggestions.length - 1;
+                }
+                this.updateRoomHighlight(nextIndex);
+                break;
+
+            case 'Enter':
+                e.preventDefault();
+                if (highlighted) {
+                    const roomNumber = highlighted.getAttribute('data-room-number');
+                    document.getElementById('roomNumber').value = roomNumber;
+                    document.getElementById('roomNumber').classList.add('selected');
+                    this.selectedRoom = parseInt(roomNumber);
+                    this.hideRoomSuggestions();
+                    this.updatePreview();
+                }
+                break;
+
+            case 'Escape':
+                this.hideRoomSuggestions();
+                break;
+        }
+    }
+
+    updateGuestHighlight(index) {
+        const suggestions = document.querySelectorAll('#guestSuggestions .suggestion-item');
+        suggestions.forEach((item, i) => {
+            item.classList.toggle('highlighted', i === index);
+        });
+    }
+
+    updateRoomHighlight(index) {
+        const suggestions = document.querySelectorAll('#roomSuggestions .suggestion-item');
+        suggestions.forEach((item, i) => {
+            item.classList.toggle('highlighted', i === index);
+        });
+    }
+
+    showReservationPreview() {
+        const previewContainer = document.getElementById('reservationPreview');
+        if (!previewContainer) return;
+        
+        previewContainer.className = 'reservation-preview';
+        previewContainer.style.display = 'none';
+        this.updatePreview();
+    }
+
+    updatePreview() {
+        const guestName = document.getElementById('guestName').value.trim();
+        const roomNumber = document.getElementById('roomNumber').value;
+        const previewContainer = document.getElementById('reservationPreview');
+        
+        if (!previewContainer) return;
+        
+        if (!guestName && !roomNumber && this.selectedDates.size === 0) {
+            previewContainer.style.display = 'none';
+            return;
+        }
+        
+        let previewHTML = '<div class="preview-header">📋 Pré-visualização da Reserva</div>';
+        
+        if (guestName) {
+            const guestExists = this.allGuests.some(g => 
+                g.name.toLowerCase() === guestName.toLowerCase()
+            );
+            previewHTML += `
+                <div class="preview-item ${guestExists ? 'available' : ''}">
+                    <strong>Hóspede:</strong> ${this.escapeHtml(guestName)}
+                    ${guestExists ? '✅ Existente' : '🆕 Novo (será criado)'}
+                </div>
+            `;
+        }
+        
+        if (roomNumber && !isNaN(parseInt(roomNumber))) {
+            const roomNum = parseInt(roomNumber);
+            const room = this.allRooms.find(r => r.number === roomNum);
+            previewHTML += `
+                <div class="preview-item ${room ? 'available' : 'unavailable'}">
+                    <strong>Quarto:</strong> ${roomNumber}
+                    ${room ? '✅ Disponível' : '❌ Não encontrado'}
+                </div>
+            `;
+        }
+        
+        if (this.selectedDates.size > 0) {
+            const sortedDates = Array.from(this.selectedDates).sort();
+            previewHTML += `
+                <div class="preview-item">
+                    <strong>Datas (${this.selectedDates.size}):</strong> 
+                    ${sortedDates.slice(0, 3).map(d => this.formatDateForDisplay(d)).join(', ')}
+                    ${sortedDates.length > 3 ? `... +${sortedDates.length - 3} mais` : ''}
+                </div>
+            `;
+            
+            if (roomNumber && !isNaN(parseInt(roomNumber))) {
+                this.checkRoomAvailability(parseInt(roomNumber), this.selectedDates)
+                    .then(availability => {
+                        const availabilityElement = document.createElement('div');
+                        availabilityElement.className = `preview-item ${availability.available ? 'available' : 'unavailable'}`;
+                        availabilityElement.innerHTML = `<strong>Disponibilidade:</strong> ${availability.message}`;
+                        previewContainer.appendChild(availabilityElement);
+                    });
+            }
+        }
+        
+        previewContainer.innerHTML = previewHTML;
+        previewContainer.style.display = 'block';
+    }
+
+    formatDateForDisplay(dateObj) {
+        const date = this.parseDate(dateObj);
+        return date.toLocaleDateString('pt-BR');
+    }
+
+    async checkRoomAvailability(roomNumber, dates) {
+        try {
+            const roomExists = this.allRooms.some(r => r.number === roomNumber);
+            if (!roomExists) {
+                return {
+                    available: false,
+                    message: `Quarto ${roomNumber} não encontrado`
+                };
+            }
+
+            const dateStrings = Array.from(dates);
+            let hasConflict = false;
+            let conflictDate = null;
+
+            for (const dateStr of dateStrings) {
+                const reservedRooms = this.reservedDates.get(dateStr) || [];
+                if (reservedRooms.includes(roomNumber)) {
+                    hasConflict = true;
+                    conflictDate = dateStr;
+                    break;
+                }
+            }
+
+            if (hasConflict) {
+                return {
+                    available: false,
+                    message: `Quarto ${roomNumber} já está reservado para ${this.formatDateForDisplay(conflictDate)}`
+                };
+            }
+
+            return {
+                available: true,
+                message: `Quarto ${roomNumber} disponível para as datas selecionadas`
+            };
+
+        } catch (error) {
+            console.error('Erro ao verificar disponibilidade:', error);
+            return {
+                available: false,
+                message: 'Erro ao verificar disponibilidade do quarto'
+            };
+        }
     }
 
     logout() {
@@ -115,7 +519,6 @@ class CalendarSystem {
         }
     }
 
-    // Calendar Functions
     loadCalendar() {
         const calendarTitle = document.getElementById('calendarTitle');
         const calendar = document.getElementById('calendar');
@@ -321,34 +724,97 @@ class CalendarSystem {
 
             if (availableRoomNumbers.length <= 5) {
                 availableRoomNumbers.forEach(roomNum => {
+                    const room = this.allRooms.find(r => r.number === roomNum);
+                    const roomInfo = room ? `${room.roomTypeDescription || 'Quarto'}` : 'Quarto';
+                    
                     const availableElement = document.createElement('div');
-                    availableElement.className = 'event available';
-                    availableElement.textContent = `Quarto ${roomNum}`;
-                    availableElement.title = `Quarto ${roomNum} disponível`;
+                    availableElement.className = 'event available clickable-room';
+                    availableElement.setAttribute('data-room-number', roomNum);
+                    availableElement.innerHTML = `
+                        <strong>Quarto ${roomNum}</strong>
+                        <br><small>${roomInfo}</small>
+                    `;
+                    availableElement.title = `Clique para selecionar quarto ${roomNum}`;
+                    
+                    availableElement.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const roomInput = document.getElementById('roomNumber');
+                        roomInput.value = roomNum;
+                        roomInput.classList.add('selected');
+                        this.selectedRoom = roomNum;
+                        this.hideRoomSuggestions();
+                        this.updatePreview();
+                        
+                        this.showAlert(`Quarto ${roomNum} selecionado`, 'success');
+                    });
+                    
                     container.appendChild(availableElement);
                 });
             } else {
-                // Mostrar resumo se forem muitos quartos
                 const availableElement = document.createElement('div');
                 availableElement.className = 'event available';
                 availableElement.textContent = `${availableRooms} quartos disponíveis`;
-                availableElement.title = `Quartos disponíveis: ${availableRoomNumbers.join(', ')}`;
+                availableElement.title = `Clique para ver a lista completa`;
+                
+                availableElement.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.showAllAvailableRooms(dateString, availableRoomNumbers);
+                });
+                
                 container.appendChild(availableElement);
             }
         }
     }
 
+    showAllAvailableRooms(dateString, availableRoomNumbers) {
+        const modal = document.getElementById('availableRoomsModal');
+        const listContainer = document.getElementById('availableRoomsList');
+        
+        const roomsHTML = availableRoomNumbers.map(roomNum => {
+            const room = this.allRooms.find(r => r.number === roomNum);
+            return `
+                <div class="available-room-item" data-room-number="${roomNum}">
+                    <div class="room-info">
+                        <div>
+                            <div class="room-number">Quarto ${roomNum}</div>
+                            <div class="room-type">${room?.roomTypeDescription || 'Tipo não especificado'}</div>
+                        </div>
+                        <div class="room-price">R$ ${room?.price ? parseFloat(room.price).toFixed(2) : '0,00'}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        listContainer.innerHTML = roomsHTML;
+        modal.style.display = 'block';
+        
+        listContainer.querySelectorAll('.available-room-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const roomNum = item.getAttribute('data-room-number');
+                const roomInput = document.getElementById('roomNumber');
+                roomInput.value = roomNum;
+                roomInput.classList.add('selected');
+                this.selectedRoom = parseInt(roomNum);
+                this.updatePreview();
+                this.closeAvailableRoomsModal();
+                
+                this.showAlert(`Quarto ${roomNum} selecionado`, 'success');
+            });
+        });
+    }
+
+    closeAvailableRoomsModal() {
+        document.getElementById('availableRoomsModal').style.display = 'none';
+    }
+
     toggleDateExpansion(date) {
         const dateString = this.formatDate(date);
         
-        // Verificar se estamos no modo de seleção (formulário visível)
         const isReservationFormVisible = document.getElementById('reservationForm').style.display === 'block';
         
         if (isReservationFormVisible) {
-            // Modo seleção: alternar seleção da data
             this.toggleDateSelection(date);
         } else {
-            // Modo visualização: alternar expansão
             if (this.expandedDate === dateString) {
                 this.expandedDate = null;
                 this.hideReservationsList();
@@ -365,13 +831,11 @@ class CalendarSystem {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         
-        // Não permitir selecionar datas passadas
         if (date < today) {
             this.showAlert('Não é possível selecionar datas passadas', 'error');
             return;
         }
         
-        // Verificar se a data está totalmente reservada
         const reservedRooms = this.reservedDates.get(dateString) || [];
         const totalRooms = this.allRooms.length;
         
@@ -380,7 +844,6 @@ class CalendarSystem {
             return;
         }
         
-        // Alternar seleção
         if (this.selectedDates.has(dateString)) {
             this.selectedDates.delete(dateString);
         } else {
@@ -412,6 +875,9 @@ class CalendarSystem {
                             <button class="btn btn-sm btn-info" onclick="calendarSystem.manageReservation(${reservation.id})">
                                 <i class="fas fa-cog"></i> Gerenciar
                             </button>
+                            <button class="btn btn-sm btn-primary" onclick="calendarSystem.generateAndDownloadVoucher(${reservation.id})" title="Baixar Voucher">
+                                <i class="fas fa-download"></i> Voucher
+                            </button>
                             ${reservation.reserveStatus === 'CONFIRMED' ? `
                                 <button class="btn btn-sm btn-success" onclick="calendarSystem.performCheckIn(${reservation.id})">
                                     <i class="fas fa-sign-in-alt"></i> Check-in
@@ -440,10 +906,7 @@ class CalendarSystem {
             container.innerHTML = html;
         }
         
-        // Mostrar o card de reservas
         reservationsCard.style.display = 'block';
-        
-        // Rolar até as reservas
         reservationsCard.scrollIntoView({ behavior: 'smooth' });
     }
 
@@ -475,15 +938,56 @@ class CalendarSystem {
     }
 
     formatDate(date) {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
+        const dateObj = this.parseDate(date);
+        const year = dateObj.getFullYear();
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const day = String(dateObj.getDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
     }
 
-    parseDate(dateString) {
-        const parts = dateString.split('-');
-        return new Date(parts[0], parts[1] - 1, parts[2]);
+    parseDate(dateObj) {
+        if (!dateObj) {
+            return new Date();
+        }
+        
+        if (dateObj instanceof Date) {
+            return dateObj;
+        }
+        
+        if (typeof dateObj === 'string') {
+            if (dateObj.includes('T')) {
+                return new Date(dateObj);
+            }
+            
+            try {
+                const parts = dateObj.split('-');
+                if (parts.length === 3) {
+                    return new Date(parts[0], parts[1] - 1, parts[2]);
+                }
+                return new Date(dateObj);
+            } catch (error) {
+                console.error('Erro ao fazer parse da string:', error);
+                return new Date();
+            }
+        }
+        
+        if (typeof dateObj === 'object') {
+            if (dateObj.year && dateObj.month && dateObj.day) {
+                return new Date(dateObj.year, dateObj.month - 1, dateObj.day);
+            }
+            
+            if (dateObj.$date || dateObj.iso) {
+                const dateStr = dateObj.$date || dateObj.iso;
+                return new Date(dateStr);
+            }
+            
+            const dateStr = String(dateObj);
+            if (dateStr.match(/\d{4}-\d{2}-\d{2}/)) {
+                return this.parseDate(dateStr);
+            }
+        }
+        
+        return new Date();
     }
 
     updateSelectedDatesDisplay() {
@@ -510,10 +1014,13 @@ class CalendarSystem {
                 this.selectedDates.delete(dateString);
                 this.updateSelectedDatesDisplay();
                 this.loadCalendar();
+                this.updatePreview();
             });
             
             selectedDatesContainer.appendChild(dateTag);
         });
+        
+        this.updatePreview();
     }
 
     previousMonth() {
@@ -537,21 +1044,25 @@ class CalendarSystem {
         
         if (isFormVisible) {
             form.style.display = 'none';
-            this.expandedDate = null; // Sair do modo expansão
+            this.expandedDate = null;
         } else {
             form.style.display = 'block';
             this.selectedDates.clear();
-            this.expandedDate = null; // Garantir que não está em modo expansão
+            this.expandedDate = null;
             this.hideReservationsList();
         }
         
         this.updateSelectedDatesDisplay();
-        this.loadCalendar(); // Recarregar para mostrar os indicadores de seleção
+        this.loadCalendar();
     }
 
     cancelReservation() {
         document.getElementById('reservationForm').style.display = 'none';
         document.getElementById('reserveForm').reset();
+        document.getElementById('guestName').classList.remove('selected');
+        document.getElementById('roomNumber').classList.remove('selected');
+        this.selectedGuest = null;
+        this.selectedRoom = null;
         this.selectedDates.clear();
         this.updateSelectedDatesDisplay();
         this.loadCalendar();
@@ -565,7 +1076,6 @@ class CalendarSystem {
                 const reserves = await response.json();
                 this.allReservations = reserves;
                 this.updateReservedDates();
-                // Não mostrar reservas inicialmente
                 this.hideReservationsList();
                 this.loadCalendar();
             } else {
@@ -584,15 +1094,47 @@ class CalendarSystem {
             if (reserve.reservedDays && reserve.reserveStatus !== 'CANCELLED') {
                 const roomNumber = this.getRoomNumber(reserve);
                 reserve.reservedDays.forEach(date => {
-                    if (!this.reservedDates.has(date)) {
-                        this.reservedDates.set(date, []);
-                    }
-                    if (roomNumber !== 'N/A') {
-                        this.reservedDates.get(date).push(roomNumber);
+                    const dateStr = this.extractDateFromLocalDate(date);
+                    if (dateStr) {
+                        if (!this.reservedDates.has(dateStr)) {
+                            this.reservedDates.set(dateStr, []);
+                        }
+                        if (roomNumber !== 'N/A') {
+                            this.reservedDates.get(dateStr).push(roomNumber);
+                        }
                     }
                 });
             }
         });
+    }
+
+    extractDateFromLocalDate(dateObj) {
+        if (dateObj && typeof dateObj === 'object') {
+            if (dateObj.year && dateObj.month && dateObj.day) {
+                return `${dateObj.year}-${String(dateObj.month).padStart(2, '0')}-${String(dateObj.day).padStart(2, '0')}`;
+            }
+            
+            if (dateObj.$date) {
+                return dateObj.$date.substring(0, 10);
+            }
+            
+            if (dateObj.iso) {
+                return dateObj.iso.substring(0, 10);
+            }
+            
+            if (dateObj._year || dateObj._month || dateObj._day) {
+                const year = dateObj._year || dateObj.year;
+                const month = dateObj._month || dateObj.month;
+                const day = dateObj._day || dateObj.day;
+                return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            }
+        }
+        
+        if (typeof dateObj === 'string') {
+            return dateObj;
+        }
+        
+        return String(dateObj);
     }
 
     getStatusClass(status) {
@@ -618,16 +1160,34 @@ class CalendarSystem {
     async handleReservation(event) {
         event.preventDefault();
         
-        const guestName = document.getElementById('guestName').value;
-        const roomNumber = parseInt(document.getElementById('roomNumber').value);
+        const guestName = document.getElementById('guestName').value.trim();
+        const roomInput = document.getElementById('roomNumber').value;
+        const roomNumber = parseInt(roomInput);
         
         if (this.selectedDates.size === 0) {
             this.showAlert('Selecione pelo menos uma data para reservar', 'error');
             return;
         }
         
-        if (!guestName || !roomNumber) {
+        if (!guestName || !roomNumber || isNaN(roomNumber)) {
             this.showAlert('Preencha todos os campos obrigatórios', 'error');
+            return;
+        }
+        
+        const datesArray = Array.from(this.selectedDates).map(dateStr => {
+            const date = this.parseDate(dateStr);
+            return this.formatDate(date);
+        });
+        
+        const roomExists = this.allRooms.some(r => r.number === roomNumber);
+        if (!roomExists) {
+            this.showAlert(`Quarto ${roomNumber} não encontrado`, 'error');
+            return;
+        }
+        
+        const availability = await this.checkRoomAvailability(roomNumber, this.selectedDates);
+        if (!availability.available) {
+            this.showAlert(availability.message, 'error');
             return;
         }
         
@@ -636,29 +1196,64 @@ class CalendarSystem {
         reserveBtn.innerHTML = '<div class="loading"></div> Reservando...';
         
         try {
-            const datesArray = Array.from(this.selectedDates).map(dateStr => {
-                const date = this.parseDate(dateStr);
-                return this.formatDate(date);
-            });
-            
             const reservationData = {
                 dates: datesArray,
                 guestName: guestName,
                 roomNumber: roomNumber
             };
             
-            console.log('Enviando dados:', reservationData);
+            console.log('Tentando criar reserva com /insert:', reservationData);
             
-            const response = await this.makeAuthenticatedRequest(`${this.baseUrl}/insert`, {
+            let response = await this.makeAuthenticatedRequest(`${this.baseUrl}/insert`, {
                 method: 'POST',
                 body: JSON.stringify(reservationData)
             });
+            
+            if (response.status === 404) {
+                console.log('Hóspede não encontrado, tentando com /create-with-guest');
+                
+                const newGuestData = {
+                    guests: [{
+                        name: guestName,
+                        rg: "A ser preenchido",
+                        phone: "Não informado",
+                        email: ""
+                    }],
+                    dates: datesArray,
+                    roomNumber: roomNumber
+                };
+                
+                response = await this.makeAuthenticatedRequest(`${this.baseUrl}/create-with-guest`, {
+                    method: 'POST',
+                    body: JSON.stringify(newGuestData)
+                });
+                
+                if (response.ok) {
+                    await this.loadGuests();
+                }
+            }
             
             if (response.ok) {
                 const reserve = await response.json();
                 this.showAlert('Reserva criada com sucesso!', 'success');
                 this.cancelReservation();
                 this.loadReservations();
+                
+                Swal.fire({
+                    title: '✅ Reserva Criada!',
+                    html: `
+                        <div style="text-align: left;">
+                            <p><strong>Reserva #${reserve.id}</strong></p>
+                            <p><strong>Status:</strong> ${this.getStatusText(reserve.reserveStatus)}</p>
+                            <p><strong>Hóspede:</strong> ${guestName}</p>
+                            <p><strong>Quarto:</strong> ${roomNumber}</p>
+                            <p><strong>Datas:</strong> ${datesArray.sort().map(d => this.formatDateForDisplay(d)).join(', ')}</p>
+                        </div>
+                    `,
+                    icon: 'success',
+                    confirmButtonText: 'OK'
+                });
+                
             } else {
                 const errorData = await response.json();
                 throw new Error(errorData.message || 'Erro ao criar reserva');
@@ -789,13 +1384,24 @@ class CalendarSystem {
     openManageModal(reservation) {
         const container = document.getElementById('manageReservationContent');
         
+        // Obter informações do hóspede
+        const guestName = this.getGuestName(reservation);
+        const guestPhone = reservation.guest && reservation.guest.length > 0 ? 
+            (reservation.guest[0].phone || '(00) 00000-0000') : '(00) 00000-0000';
+        const guestRgCpf = reservation.guest && reservation.guest.length > 0 ? 
+            (reservation.guest[0].rg || 'XXXX-XXXX') : 'XXXX-XXXX';
+        
+        // Calcular valor total usando o método do backend ou calcular localmente
+        const totalValue = reservation.calculateTotalValue ? 
+            parseFloat(reservation.calculateTotalValue()).toFixed(2) :
+            this.calculateReservationTotal(reservation);
+        
         const html = `
             <div>
-                <!-- Cabeçalho com Informações Principais -->
                 <div class="quick-stats">
                     <div class="stat-card">
-                        <div class="stat-number">#${reservation.id}</div>
-                        <div class="stat-label">ID da Reserva</div>
+                        <div class="stat-number">#${reservation.id.toString().padStart(6, '0')}</div>
+                        <div class="stat-label">Código Reserva</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-number">${reservation.guest ? (Array.isArray(reservation.guest) ? reservation.guest.length : reservation.guest.size) : 0}</div>
@@ -811,13 +1417,80 @@ class CalendarSystem {
                     </div>
                 </div>
 
-                <!-- Status da Reserva -->
+                <!-- SEÇÃO DO VOUCHER -->
+                <div class="management-section voucher-section">
+                    <h4 class="section-title">📄 Voucher de Hospedagem</h4>
+                    <div class="voucher-preview">
+                        <div class="voucher-preview-content">
+                            <h3>VOUCHER DE HOSPEDAGEM</h3>
+                            <h4>COMPROVANTE DE RESERVA</h4>
+                            
+                            <div class="reservation-code">
+                                CÓDIGO DA RESERVA: ${reservation.id.toString().padStart(6, '0')}
+                            </div>
+                            
+                            <div class="hotel-info">
+                                <div>
+                                    <p><strong>Endereço:</strong> QNM 16 Conjunto B</p>
+                                    <p><strong>Contato:</strong> (61) 99999-9999</p>
+                                </div>
+                                <div>
+                                    <p><strong>Nome do Estabelecimento:</strong> Elô AP</p>
+                                    <p><strong>Responsável:</strong> Elô</p>
+                                </div>
+                            </div>
+                            
+                            <div style="margin: 20px 0; padding: 15px; background: #f0f7ff; border-radius: 5px;">
+                                <p><strong>Check-in:</strong> ${this.getFirstReservationDate(reservation)}</p>
+                                <p><strong>Check-out:</strong> ${this.getLastReservationDate(reservation)}</p>
+                            </div>
+                            
+                            <div class="guest-info">
+                                <h4>Dados do Hóspede:</h4>
+                                <div class="guest-details">
+                                    <div>
+                                        <p><strong>Nome do hóspede:</strong> ${guestName}</p>
+                                        <p><strong>Telefone:</strong> ${guestPhone}</p>
+                                    </div>
+                                    <div>
+                                        <p><strong>RG/CPF:</strong> ${guestRgCpf}</p>
+                                        <div class="value-total">
+                                            <strong>VALOR TOTAL:</strong> ${this.formatCurrency(parseFloat(totalValue))}
+                                        </div>
+                                        <div class="value-breakdown">
+                                            ${reservation.numberOfDays ? `
+                                                <div class="value-breakdown-item">
+                                                    <span>Diária base:</span>
+                                                    <span>${this.formatCurrency(reservation.initialValue || 0)} x ${reservation.numberOfDays} dias</span>
+                                                </div>
+                                            ` : ''}
+                                            ${reservation.numberOfExtraGuests > 0 ? `
+                                                <div class="value-breakdown-item">
+                                                    <span>Taxa hóspedes extras:</span>
+                                                    <span>${this.formatCurrency(reservation.extraGuestFee || 20)} x ${reservation.numberOfExtraGuests} hóspede(s) x ${reservation.numberOfDays} dias</span>
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="print-controls">
+                        <button class="btn btn-primary btn-voucher" onclick="calendarSystem.generateAndDownloadVoucher(${reservation.id})" id="downloadVoucherBtn">
+                            <i class="fas fa-download"></i> Baixar Voucher (PDF)
+                        </button>
+                    </div>
+                </div>
+                <!-- FIM DA SEÇÃO DO VOUCHER -->
+
                 <div class="management-section">
                     <h4 class="section-title">📊 Status da Reserva</h4>
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div>
                             <span class="status-badge status-${reservation.reserveStatus ? reservation.reserveStatus.toLowerCase() : 'unknown'}">
-                                ${reservation.reserveStatus || 'N/A'}
+                                ${this.getStatusText(reservation.reserveStatus) || 'N/A'}
                             </span>
                             <div style="margin-top: 0.5rem;">
                                 <small>
@@ -846,7 +1519,6 @@ class CalendarSystem {
                     </div>
                 </div>
 
-                <!-- Ações Rápidas -->
                 <div class="management-section">
                     <h4 class="section-title">⚡ Ações Rápidas</h4>
                     <div class="action-grid">
@@ -854,11 +1526,6 @@ class CalendarSystem {
                             <div class="action-icon">📅</div>
                             <div class="action-title">Adicionar Datas</div>
                             <div class="action-description">Incluir novas datas na reserva</div>
-                        </div>
-                        <div class="action-card" onclick="calendarSystem.openAddRoomModal(${reservation.id})">
-                            <div class="action-icon">🏠</div>
-                            <div class="action-title">Adicionar Quarto</div>
-                            <div class="action-description">Incluir outro quarto na reserva</div>
                         </div>
                         <div class="action-card" onclick="calendarSystem.focusAddGuest(${reservation.id})">
                             <div class="action-icon">👥</div>
@@ -868,7 +1535,6 @@ class CalendarSystem {
                     </div>
                 </div>
 
-                <!-- Gerenciamento de Datas -->
                 <div class="management-section">
                     <h4 class="section-title">📅 Datas da Reserva</h4>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
@@ -895,39 +1561,32 @@ class CalendarSystem {
                     </div>
                 </div>
 
-                <!-- Gerenciamento de Hóspedes -->
                 <div class="management-section">
                     <h4 class="section-title">👥 Hóspedes</h4>
                     <div class="guest-list" id="currentGuestList">
                         ${this.formatGuestList(reservation.guest, reservation.id)}
                     </div>
                     <div class="form-group" style="margin-top: 1rem;">
-                        <div class="date-picker-group">
-                            <input type="text" id="newGuestName" class="form-control" placeholder="Nome do novo hóspede" style="flex: 1;">
-                            <button class="btn btn-success btn-sm" onclick="calendarSystem.addGuest(${reservation.id})">
-                                Adicionar
+                        <label class="form-label">Adicionar Novo Hóspede</label>
+                        <div class="autocomplete-container">
+                            <input 
+                                type="text" 
+                                id="newGuestName" 
+                                class="form-control" 
+                                placeholder="Digite o nome do hóspede"
+                                autocomplete="off"
+                                style="flex: 1;"
+                            >
+                            <div id="newGuestSuggestions" class="autocomplete-suggestions"></div>
+                        </div>
+                        <div class="button-group">
+                            <button class="btn btn-success btn-sm" onclick="calendarSystem.addGuest(${reservation.id})" style="margin-top: 0.5rem;">
+                                <i class="fas fa-plus"></i> Adicionar Hóspede
+                            </button>
+                            <button class="btn btn-primary btn-sm" onclick="calendarSystem.openCreateGuestModal()" style="margin-top: 0.5rem; margin-left: 0.5rem;">
+                                <i class="fas fa-user-plus"></i> Criar Novo Hóspede
                             </button>
                         </div>
-                    </div>
-                </div>
-
-                <!-- Gerenciamento de Quartos -->
-                <div class="management-section">
-                    <h4 class="section-title">🏠 Quartos</h4>
-                    <div class="guest-list">
-                        ${reservation.rooms && reservation.rooms.length > 0 ? 
-                            reservation.rooms.map(room => `
-                                <div class="guest-item">
-                                    <span>Quarto ${room.number} - ${room.exclusiveRoom ? '🔄 Exclusivo' : '👥 Compartilhado'}</span>
-                                    ${reservation.rooms.length > 1 ? `
-                                        <button class="btn btn-sm btn-danger" onclick="calendarSystem.removeRoom(${reservation.id}, ${room.number})">
-                                            Remover
-                                        </button>
-                                    ` : '<small style="color: #666;">Quarto principal</small>'}
-                                </div>
-                            `).join('') : 
-                            '<p>Nenhum quarto definido</p>'
-                        }
                     </div>
                 </div>
             </div>
@@ -935,6 +1594,548 @@ class CalendarSystem {
 
         container.innerHTML = html;
         document.getElementById('manageModal').style.display = 'block';
+        
+        setTimeout(() => {
+            this.initManageModalAutocomplete();
+        }, 100);
+    }
+
+    calculateReservationTotal(reservation) {
+        // Cálculo local se o backend não fornecer calculateTotalValue
+        const initialValue = reservation.initialValue || 0;
+        const numberOfDays = reservation.reservedDays ? 
+            (Array.isArray(reservation.reservedDays) ? reservation.reservedDays.length : reservation.reservedDays.size) : 0;
+        const extraGuestFee = reservation.extraGuestFee || 20;
+        const numberOfExtraGuests = Math.max(0, (reservation.guest ? 
+            (Array.isArray(reservation.guest) ? reservation.guest.length : reservation.guest.size) : 0) - 1);
+        
+        // Calcular valor total: (valor inicial × dias) + (taxa extra × hóspedes extras × dias)
+        const baseTotal = initialValue * numberOfDays;
+        const extraTotal = extraGuestFee * numberOfExtraGuests * numberOfDays;
+        
+        return (baseTotal + extraTotal).toFixed(2);
+    }
+
+    formatCurrency(value) {
+        return new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+        }).format(value || 0);
+    }
+
+    getFirstReservationDate(reservation) {
+        if (reservation.reservedDays && reservation.reservedDays.length > 0) {
+            const dates = Array.isArray(reservation.reservedDays) ? reservation.reservedDays : Array.from(reservation.reservedDays);
+            const sortedDates = dates.sort();
+            return this.formatDateForDisplay(sortedDates[0]);
+        }
+        return 'N/A';
+    }
+
+    getLastReservationDate(reservation) {
+        if (reservation.reservedDays && reservation.reservedDays.length > 0) {
+            const dates = Array.isArray(reservation.reservedDays) ? reservation.reservedDays : Array.from(reservation.reservedDays);
+            const sortedDates = dates.sort();
+            return this.formatDateForDisplay(sortedDates[sortedDates.length - 1]);
+        }
+        return 'N/A';
+    }
+
+    async generateAndDownloadVoucher(reservationId) {
+        try {
+            const response = await this.makeAuthenticatedRequest(`${this.baseUrl}/find/${reservationId}`);
+            
+            if (response.ok) {
+                const reservation = await response.json();
+                
+                // Desabilitar botão e mostrar loading
+                const downloadBtn = document.getElementById('downloadVoucherBtn');
+                if (downloadBtn) {
+                    const originalText = downloadBtn.innerHTML;
+                    downloadBtn.disabled = true;
+                    downloadBtn.innerHTML = '<div class="loading"></div> Gerando PDF...';
+                    
+                    // Restaurar botão após 3 segundos (caso o PDF falhe)
+                    setTimeout(() => {
+                        if (downloadBtn.disabled) {
+                            downloadBtn.disabled = false;
+                            downloadBtn.innerHTML = originalText;
+                        }
+                    }, 3000);
+                }
+                
+                // Mostrar alerta de processamento
+                Swal.fire({
+                    title: 'Gerando PDF...',
+                    text: 'Por favor, aguarde enquanto o voucher é gerado.',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+                
+                // Gerar PDF usando HTML2Canvas (melhor para manter layout)
+                await this.generatePDFFromHTML(reservation);
+                
+                // Fechar alerta
+                Swal.close();
+                
+                // Restaurar botão
+                if (downloadBtn) {
+                    downloadBtn.disabled = false;
+                    downloadBtn.innerHTML = '<i class="fas fa-download"></i> Baixar Voucher (PDF)';
+                }
+                
+                this.showAlert('Voucher baixado com sucesso!', 'success');
+                
+            } else {
+                throw new Error('Erro ao carregar dados da reserva');
+            }
+        } catch (error) {
+            console.error('Erro ao gerar voucher:', error);
+            Swal.close();
+            
+            // Restaurar botão em caso de erro
+            const downloadBtn = document.getElementById('downloadVoucherBtn');
+            if (downloadBtn) {
+                downloadBtn.disabled = false;
+                downloadBtn.innerHTML = '<i class="fas fa-download"></i> Baixar Voucher (PDF)';
+            }
+            
+            this.showAlert('Erro ao gerar voucher: ' + error.message, 'error');
+        }
+    }
+
+    async generatePDFFromHTML(reservation) {
+        return new Promise(async (resolve, reject) => {
+            try {
+                // Verificar se as bibliotecas estão disponíveis
+                if (typeof html2canvas === 'undefined') {
+                    throw new Error('Biblioteca html2canvas não carregada. Adicione o script no HTML.');
+                }
+                
+                if (typeof jspdf === 'undefined') {
+                    throw new Error('Biblioteca jsPDF não carregada. Adicione o script no HTML.');
+                }
+                
+                // Criar elemento HTML temporário com estilo otimizado para PDF
+                const tempDiv = document.createElement('div');
+                tempDiv.style.position = 'absolute';
+                tempDiv.style.left = '-9999px';
+                tempDiv.style.top = '0';
+                tempDiv.style.width = '794px'; // A4 em pixels (210mm)
+                tempDiv.style.minHeight = '1123px'; // Altura A4
+                tempDiv.style.padding = '40px';
+                tempDiv.style.backgroundColor = 'white';
+                tempDiv.style.fontFamily = 'Arial, Helvetica, sans-serif';
+                tempDiv.style.boxSizing = 'border-box';
+                
+                // Gerar conteúdo HTML otimizado para PDF
+                tempDiv.innerHTML = this.generatePDFVoucherHTML(reservation);
+                document.body.appendChild(tempDiv);
+                
+                // Aguardar renderização
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Converter para canvas com alta qualidade
+                const canvas = await html2canvas(tempDiv, {
+                    scale: 2, // Maior qualidade
+                    useCORS: true,
+                    logging: false,
+                    backgroundColor: '#ffffff',
+                    allowTaint: true,
+                    removeContainer: true
+                });
+                
+                // Limpar elemento temporário
+                document.body.removeChild(tempDiv);
+                
+                // Converter canvas para PDF
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'px',
+                    format: 'a4'
+                });
+                
+                const imgData = canvas.toDataURL('image/jpeg', 1.0);
+                const pdfWidth = doc.internal.pageSize.getWidth();
+                const pdfHeight = doc.internal.pageSize.getHeight();
+                
+                // Adicionar imagem ao PDF
+                doc.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+                
+                // Nome do arquivo
+                const guestName = this.getGuestName(reservation);
+                const safeFileName = guestName.replace(/[^a-zA-Z0-9]/g, '_');
+                const fileName = `Voucher_Reserva_${reservation.id}_${safeFileName}.pdf`;
+                
+                // Baixar PDF
+                doc.save(fileName);
+                
+                resolve();
+                
+            } catch (error) {
+                console.error('Erro no generatePDFFromHTML:', error);
+                
+                // Fallback: tentar método simples
+                try {
+                    await this.generateSimplePDFVoucher(reservation);
+                    resolve();
+                } catch (fallbackError) {
+                    reject(fallbackError);
+                }
+            }
+        });
+    }
+
+    generatePDFVoucherHTML(reservation) {
+        const firstDate = this.getFirstReservationDate(reservation);
+        const lastDate = this.getLastReservationDate(reservation);
+        const guestName = this.getGuestName(reservation);
+        const guestPhone = reservation.guest && reservation.guest.length > 0 ? 
+            (reservation.guest[0].phone || '(00) 00000-0000') : '(00) 00000-0000';
+        const guestRgCpf = reservation.guest && reservation.guest.length > 0 ? 
+            (reservation.guest[0].rg || 'XXXX-XXXX') : 'XXXX-XXXX';
+        const roomNumber = this.getRoomNumber(reservation);
+        
+        // Calcular valor total
+        const totalValue = reservation.calculateTotalValue ? 
+            parseFloat(reservation.calculateTotalValue()).toFixed(2) :
+            this.calculateReservationTotal(reservation);
+        
+        return `
+            <div style="width: 100%; height: 100%; background: white; color: #333;">
+                <!-- Cabeçalho -->
+                <div style="text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 3px solid #ff9800;">
+                    <h1 style="color: #ff9800; font-size: 28px; margin: 0; text-transform: uppercase;">VOUCHER DE HOSPEDAGEM</h1>
+                    <h2 style="color: #ff5722; font-size: 18px; margin: 5px 0 0 0; font-weight: normal;">COMPROVANTE DE RESERVA</h2>
+                </div>
+                
+                <!-- Código da Reserva -->
+                <div style="background: #fff3cd; padding: 15px; text-align: center; font-size: 20px; font-weight: bold; margin: 20px 0; border: 2px dashed #ff9800; border-radius: 5px;">
+                    CÓDIGO DA RESERVA: ${reservation.id.toString().padStart(6, '0')}
+                </div>
+                
+                <!-- Informações do Hotel -->
+                <div style="display: flex; justify-content: space-between; margin-bottom: 30px; padding: 20px; background: #f9f9f9; border-radius: 5px;">
+                    <div>
+                        <p style="margin: 8px 0;"><strong>Endereço:</strong> QNM 16 Conjunto B</p>
+                        <p style="margin: 8px 0;"><strong>Contato:</strong> (61) 99999-9999</p>
+                    </div>
+                    <div>
+                        <p style="margin: 8px 0;"><strong>Nome do Estabelecimento:</strong> Elô AP</p>
+                        <p style="margin: 8px 0;"><strong>Responsável:</strong> Elô</p>
+                    </div>
+                </div>
+                
+                <!-- Datas da Hospedagem -->
+                <div style="background: #e8f5e9; padding: 20px; margin: 20px 0; border-radius: 5px; border-left: 5px solid #4caf50;">
+                    <h3 style="color: #2e7d32; margin-top: 0;">Datas da Hospedagem:</h3>
+                    <p style="margin: 8px 0;"><strong>Check-in:</strong> ${firstDate}</p>
+                    <p style="margin: 8px 0;"><strong>Check-out:</strong> ${lastDate}</p>
+                    <p style="margin: 8px 0;"><strong>Quarto:</strong> ${roomNumber}</p>
+                </div>
+                
+                <!-- Dados do Hóspede -->
+                <div style="background: #e3f2fd; padding: 25px; margin: 25px 0; border-radius: 5px; border-left: 5px solid #2196f3;">
+                    <h3 style="color: #1565c0; margin-top: 0;">Dados do Hóspede:</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                        <div>
+                            <p style="margin: 8px 0;"><strong>Nome do hóspede:</strong> ${guestName}</p>
+                            <p style="margin: 8px 0;"><strong>Telefone:</strong> ${guestPhone}</p>
+                        </div>
+                        <div>
+                            <p style="margin: 8px 0;"><strong>RG/CPF:</strong> ${guestRgCpf}</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Detalhamento do Valor -->
+                    <div style="margin-top: 15px; padding: 15px; background: white; border-radius: 5px; border: 1px solid #ddd;">
+                        <h4 style="margin-top: 0;">Detalhamento do Valor:</h4>
+                        ${reservation.numberOfDays ? `
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px; padding: 5px 0; border-bottom: 1px solid #eee;">
+                                <span>Diária base:</span>
+                                <span>${this.formatCurrency(reservation.initialValue || 0)} x ${reservation.numberOfDays} dias</span>
+                            </div>
+                        ` : ''}
+                        ${reservation.numberOfExtraGuests > 0 ? `
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px; padding: 5px 0; border-bottom: 1px solid #eee;">
+                                <span>Taxa hóspedes extras:</span>
+                                <span>${this.formatCurrency(reservation.extraGuestFee || 20)} x ${reservation.numberOfExtraGuests} hóspede(s) x ${reservation.numberOfDays} dias</span>
+                            </div>
+                        ` : ''}
+                        <div style="font-weight: bold; font-size: 1.2em; color: #2196F3; margin-top: 15px; padding-top: 15px; border-top: 2px solid #ddd; text-align: right;">
+                            <strong>VALOR TOTAL:</strong> ${this.formatCurrency(parseFloat(totalValue))}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Termos e Condições -->
+                <div style="padding: 20px; background: #fffde7; border-radius: 5px; border: 1px solid #ffd54f; margin-top: 30px; font-size: 13px; line-height: 1.6;">
+                    <h3 style="color: #ff9800; margin-top: 0;">Termos e Condições:</h3>
+                    <p>Seja bem-vindo ao nosso espaço de acomodação! Esperamos que você esteja bem e que se sinta em casa. Vamos passar aqui apenas algumas informações importantes para que sua estádia seja agradável e tranquila.</p>
+                    <p>Seu quarto possuí equipamentos funcionais que estão à sua disposição, assim como talheres, utensílios e eletrodomésticos (Geladeira, Airfryer, TV, etc.). Pedimos que utilize com zelo, pois danos, ou objetos quebrados podem ser cobrados ao fim da estádia.</p>
+                    <p>Caso o hóspede perca a chave ele deve ressarcir o valor da(s) cópia(s).</p>
+                    <p>Nossa política de devolução respeita à vigente nos aplicativos de hospedagens, para reservas feitas nos mesmos, ou devolução integral do valor pago para desistências avisadas com até 5 dias de antecedência, e devolução parcial para desistências avisadas com menos de 5 dias (Neste caso o valor deve ser consultado com o Responsável). Para hóspedes que não compareçam à estádia e não avisem com prazo de até 24 horas do dia marcado para o check in, não terá direito à devolução.</p>
+                    <p>Essas são as nossas regras, e desejamos uma boa hospedagem! ♥️</p>
+                </div>
+                
+                <!-- Assinatura -->
+                <div style="margin-top: 50px; padding-top: 20px; border-top: 2px solid #333; text-align: right;">
+                    <p style="margin: 10px 0;">_________________________________________</p>
+                    <p style="margin: 10px 0;"><strong>Responsável:</strong> Elô</p>
+                    <p style="margin: 10px 0;"><strong>Data:</strong> ${new Date().toLocaleDateString('pt-BR')}</p>
+                </div>
+                
+                <!-- Rodapé -->
+                <div style="margin-top: 20px; padding-top: 10px; border-top: 1px solid #ccc; text-align: center; font-size: 10px; color: #666;">
+                    Documento gerado automaticamente pelo Sistema Interactive Edge
+                </div>
+            </div>
+        `;
+    }
+
+    // Método de fallback simples
+    async generateSimplePDFVoucher(reservation) {
+        return new Promise((resolve, reject) => {
+            try {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                
+                // Dados básicos
+                const guestName = this.getGuestName(reservation);
+                const totalValue = reservation.calculateTotalValue ? 
+                    parseFloat(reservation.calculateTotalValue()).toFixed(2) :
+                    this.calculateReservationTotal(reservation);
+                
+                // Configuração
+                doc.setFont('helvetica');
+                
+                // Cabeçalho
+                doc.setFontSize(20);
+                doc.setTextColor(255, 152, 0); // Laranja
+                doc.text('VOUCHER DE HOSPEDAGEM', 105, 20, { align: 'center' });
+                
+                doc.setFontSize(14);
+                doc.setTextColor(255, 87, 34); // Laranja escuro
+                doc.text('COMPROVANTE DE RESERVA', 105, 30, { align: 'center' });
+                
+                // Linha divisória
+                doc.setDrawColor(255, 152, 0);
+                doc.setLineWidth(0.5);
+                doc.line(20, 35, 190, 35);
+                
+                // Código da Reserva
+                doc.setFontSize(16);
+                doc.setTextColor(102, 60, 0); // Marrom
+                doc.text(`CÓDIGO: ${reservation.id.toString().padStart(6, '0')}`, 105, 45, { align: 'center' });
+                
+                // Informações do Hotel
+                doc.setFontSize(11);
+                doc.setTextColor(0, 0, 0);
+                doc.setFont('helvetica', 'bold');
+                doc.text('ELÔ AP - HOSPEDAGEM', 20, 60);
+                doc.setFont('helvetica', 'normal');
+                doc.text('Endereço: QNM 16 Conjunto B', 20, 68);
+                doc.text('Contato: (61) 99999-9999', 20, 76);
+                doc.text('Responsável: Elô', 20, 84);
+                
+                // Datas
+                doc.setFont('helvetica', 'bold');
+                doc.text('DATAS DA HOSPEDAGEM:', 20, 95);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Check-in: ${this.getFirstReservationDate(reservation)}`, 20, 103);
+                doc.text(`Check-out: ${this.getLastReservationDate(reservation)}`, 20, 111);
+                doc.text(`Quarto: ${this.getRoomNumber(reservation)}`, 20, 119);
+                
+                // Dados do Hóspede
+                doc.setFont('helvetica', 'bold');
+                doc.text('DADOS DO HÓSPEDE:', 20, 130);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Nome: ${guestName}`, 20, 138);
+                doc.text(`Telefone: ${reservation.guest && reservation.guest.length > 0 ? (reservation.guest[0].phone || 'Não informado') : 'Não informado'}`, 20, 146);
+                doc.text(`RG/CPF: ${reservation.guest && reservation.guest.length > 0 ? (reservation.guest[0].rg || 'Não informado') : 'Não informado'}`, 20, 154);
+                
+                // Valor
+                doc.setFont('helvetica', 'bold');
+                doc.text('VALOR TOTAL:', 20, 165);
+                doc.setFontSize(14);
+                doc.setTextColor(33, 150, 243); // Azul
+                doc.text(`R$ ${totalValue}`, 60, 165);
+                
+                // Detalhamento do Valor
+                doc.setFontSize(9);
+                doc.setTextColor(0, 0, 0);
+                doc.setFont('helvetica', 'normal');
+                
+                let yPos = 175;
+                if (reservation.numberOfDays) {
+                    const dailyValue = reservation.initialValue || 0;
+                    doc.text(`Diária base: R$ ${dailyValue.toFixed(2)} x ${reservation.numberOfDays} dias`, 20, yPos);
+                    yPos += 5;
+                }
+                
+                if (reservation.numberOfExtraGuests > 0) {
+                    const extraFee = reservation.extraGuestFee || 20;
+                    doc.text(`Taxa hóspedes extras: R$ ${extraFee.toFixed(2)} x ${reservation.numberOfExtraGuests} hóspede(s) x ${reservation.numberOfDays} dias`, 20, yPos);
+                    yPos += 5;
+                }
+                
+                // Assinatura
+                doc.setDrawColor(0, 0, 0);
+                doc.setLineWidth(0.5);
+                doc.line(120, 250, 190, 250);
+                
+                doc.setFontSize(10);
+                doc.text('Responsável: Elô', 120, 260);
+                doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 120, 267);
+                
+                // Rodapé
+                doc.setFontSize(7);
+                doc.setTextColor(128, 128, 128);
+                doc.text('Documento gerado automaticamente pelo Sistema Interactive Edge', 105, 285, { align: 'center' });
+                
+                // Baixar
+                doc.save(`Voucher_${reservation.id}.pdf`);
+                
+                resolve();
+                
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
+    initManageModalAutocomplete() {
+        const newGuestInput = document.getElementById('newGuestName');
+        const suggestionsContainer = document.getElementById('newGuestSuggestions');
+        
+        if (!newGuestInput || !suggestionsContainer) return;
+        
+        newGuestInput.addEventListener('input', (e) => this.searchNewGuests(e.target.value));
+        newGuestInput.addEventListener('keydown', (e) => this.handleNewGuestKeydown(e));
+        newGuestInput.addEventListener('focus', () => {
+            if (newGuestInput.value.length >= 2) {
+                this.showNewGuestSuggestions(newGuestInput.value);
+            }
+        });
+        newGuestInput.addEventListener('blur', () => {
+            setTimeout(() => this.hideNewGuestSuggestions(), 200);
+        });
+    }
+
+    searchNewGuests(query) {
+        clearTimeout(this.newGuestSearchTimeout);
+        
+        this.newGuestSearchTimeout = setTimeout(() => {
+            if (!query || query.length < 2) {
+                this.hideNewGuestSuggestions();
+                return;
+            }
+            this.showNewGuestSuggestions(query);
+        }, 300);
+    }
+
+    showNewGuestSuggestions(query) {
+        const suggestionsContainer = document.getElementById('newGuestSuggestions');
+        const input = document.getElementById('newGuestName');
+        
+        if (!this.allGuests || this.allGuests.length === 0) {
+            suggestionsContainer.innerHTML = '<div class="suggestion-item">Carregando hóspedes...</div>';
+            suggestionsContainer.classList.add('show');
+            return;
+        }
+        
+        const lowerQuery = query.toLowerCase();
+        const filteredGuests = this.allGuests.filter(guest => 
+            guest.name && guest.name.toLowerCase().includes(lowerQuery)
+        ).slice(0, 8);
+        
+        if (filteredGuests.length === 0) {
+            suggestionsContainer.innerHTML = `
+                <div class="suggestion-item">
+                    <div><i class="fas fa-exclamation-circle"></i> Nenhum hóspede encontrado</div>
+                    <div class="suggestion-details">Clique no botão "Criar Novo Hóspede"</div>
+                </div>
+            `;
+            suggestionsContainer.classList.add('show');
+            return;
+        }
+        
+        const suggestionsHTML = filteredGuests.map((guest, index) => `
+            <div class="suggestion-item ${index === 0 ? 'highlighted' : ''}" 
+                 data-guest-id="${guest.id}"
+                 data-guest-name="${this.escapeHtml(guest.name)}">
+                <div><strong>${this.escapeHtml(guest.name)}</strong></div>
+                ${guest.rg ? `<div class="suggestion-details">RG: ${this.escapeHtml(guest.rg)}</div>` : ''}
+                ${guest.phone ? `<div class="suggestion-details">Tel: ${this.escapeHtml(guest.phone)}</div>` : ''}
+            </div>
+        `).join('');
+        
+        suggestionsContainer.innerHTML = suggestionsHTML;
+        suggestionsContainer.classList.add('show');
+        
+        suggestionsContainer.querySelectorAll('.suggestion-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                const guestName = e.currentTarget.getAttribute('data-guest-name');
+                input.value = guestName;
+                this.hideNewGuestSuggestions();
+            });
+        });
+    }
+
+    hideNewGuestSuggestions() {
+        const suggestionsContainer = document.getElementById('newGuestSuggestions');
+        suggestionsContainer.classList.remove('show');
+    }
+
+    handleNewGuestKeydown(e) {
+        const suggestions = document.querySelectorAll('#newGuestSuggestions .suggestion-item');
+        if (suggestions.length === 0) return;
+
+        const highlighted = document.querySelector('#newGuestSuggestions .suggestion-item.highlighted');
+        let nextIndex = 0;
+
+        switch (e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                if (highlighted) {
+                    nextIndex = (Array.from(suggestions).indexOf(highlighted) + 1) % suggestions.length;
+                }
+                this.updateNewGuestHighlight(nextIndex);
+                break;
+
+            case 'ArrowUp':
+                e.preventDefault();
+                if (highlighted) {
+                    nextIndex = (Array.from(suggestions).indexOf(highlighted) - 1 + suggestions.length) % suggestions.length;
+                } else {
+                    nextIndex = suggestions.length - 1;
+                }
+                this.updateNewGuestHighlight(nextIndex);
+                break;
+
+            case 'Enter':
+                e.preventDefault();
+                if (highlighted) {
+                    const guestName = highlighted.getAttribute('data-guest-name');
+                    document.getElementById('newGuestName').value = guestName;
+                    this.hideNewGuestSuggestions();
+                }
+                break;
+
+            case 'Escape':
+                this.hideNewGuestSuggestions();
+                break;
+        }
+    }
+
+    updateNewGuestHighlight(index) {
+        const suggestions = document.querySelectorAll('#newGuestSuggestions .suggestion-item');
+        suggestions.forEach((item, i) => {
+            item.classList.toggle('highlighted', i === index);
+        });
     }
 
     formatCurrentDates(dates, reservationId) {
@@ -944,19 +2145,37 @@ class CalendarSystem {
         
         try {
             const datesArray = Array.isArray(dates) ? dates : Array.from(dates);
-            const sortedDates = datesArray.sort((a, b) => {
+            const stringDates = datesArray.map(date => {
+                if (typeof date === 'string') {
+                    return date;
+                } else if (typeof date === 'object' && date !== null) {
+                    if (date.year && date.month && date.day) {
+                        return `${date.year}-${String(date.month).padStart(2, '0')}-${String(date.day).padStart(2, '0')}`;
+                    }
+                    if (date.$date) {
+                        return date.$date.substring(0, 10);
+                    }
+                    const dateStr = String(date);
+                    if (dateStr.match(/\d{4}-\d{2}-\d{2}/)) {
+                        return dateStr;
+                    }
+                }
+                return '';
+            }).filter(dateStr => dateStr !== '');
+            
+            const sortedDates = stringDates.sort((a, b) => {
                 const dateA = this.parseDate(a);
                 const dateB = this.parseDate(b);
                 return dateA - dateB;
             });
 
-            return sortedDates.map(date => {
-                const parsedDate = this.parseDate(date);
-                const formattedDate = this.formatDate(parsedDate);
+            return sortedDates.map(dateStr => {
+                const parsedDate = this.parseDate(dateStr);
+                const formattedDate = this.formatDateForDisplay(parsedDate);
                 return `
                     <div class="date-item">
                         <span>${formattedDate}</span>
-                        <button class="btn btn-sm btn-danger" onclick="calendarSystem.removeDate(${reservationId}, '${date}')">
+                        <button class="btn btn-sm btn-danger" onclick="calendarSystem.removeDate(${reservationId}, '${dateStr}')">
                             ×
                         </button>
                     </div>
@@ -988,12 +2207,10 @@ class CalendarSystem {
         this.currentReservationId = null;
     }
 
-    // Métodos para gerenciamento de datas
     openAddDatesModal(reservationId) {
         this.currentReservationId = reservationId;
         document.getElementById('addDatesModal').style.display = 'block';
         
-        // Set default dates
         const today = new Date();
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
@@ -1024,9 +2241,7 @@ class CalendarSystem {
                 dateToCheck = checkIn;
             }
 
-            // Simular verificação de disponibilidade
-            // Em um sistema real, você faria uma requisição para o backend
-            const isAvailable = true; // Simulação
+            const isAvailable = true;
             
             const container = document.getElementById('dateAvailabilityResult');
             const html = `
@@ -1160,67 +2375,6 @@ class CalendarSystem {
         }
     }
 
-    // Métodos para gerenciamento de quartos
-    openAddRoomModal(reservationId) {
-        this.currentReservationId = reservationId;
-        document.getElementById('addRoomModal').style.display = 'block';
-    }
-
-    closeAddRoomModal() {
-        document.getElementById('addRoomModal').style.display = 'none';
-    }
-
-    async addRoom() {
-        const roomNumber = parseInt(document.getElementById('newRoomNumber').value);
-        
-        if (!roomNumber) {
-            this.showAlert('Por favor, digite o número do quarto', 'error');
-            return;
-        }
-
-        try {
-            const response = await this.makeAuthenticatedRequest(
-                `${this.baseUrl}/add-room/${this.currentReservationId}?roomNumber=${roomNumber}`,
-                { method: 'PUT' }
-            );
-
-            if (response.ok) {
-                this.showAlert('Quarto adicionado com sucesso!', 'success');
-                this.closeAddRoomModal();
-                await this.manageReservation(this.currentReservationId);
-            } else {
-                throw new Error('Erro ao adicionar quarto');
-            }
-        } catch (error) {
-            console.error('Erro ao adicionar quarto:', error);
-            this.showAlert('Erro ao adicionar quarto: ' + error.message, 'error');
-        }
-    }
-
-    async removeRoom(reservationId, roomNumber) {
-        if (!confirm(`Tem certeza que deseja remover o quarto ${roomNumber}?`)) {
-            return;
-        }
-
-        try {
-            const response = await this.makeAuthenticatedRequest(
-                `${this.baseUrl}/remove-room/${reservationId}?roomNumber=${roomNumber}`,
-                { method: 'PUT' }
-            );
-
-            if (response.ok) {
-                this.showAlert('Quarto removido com sucesso!', 'success');
-                await this.manageReservation(reservationId);
-            } else {
-                throw new Error('Erro ao remover quarto');
-            }
-        } catch (error) {
-            console.error('Erro ao remover quarto:', error);
-            this.showAlert('Erro ao remover quarto: ' + error.message, 'error');
-        }
-    }
-
-    // Métodos para gerenciamento de hóspedes
     focusAddGuest(reservationId) {
         this.currentReservationId = reservationId;
         const newGuestInput = document.getElementById('newGuestName');
@@ -1237,6 +2391,29 @@ class CalendarSystem {
             return;
         }
 
+        const guestExists = this.allGuests.some(g => 
+            g.name && g.name.toLowerCase() === guestName.toLowerCase()
+        );
+        
+        if (!guestExists) {
+            const createNew = await Swal.fire({
+                title: 'Hóspede não encontrado',
+                text: `O hóspede "${guestName}" não existe. Deseja criá-lo?`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Sim, criar hóspede',
+                cancelButtonText: 'Cancelar'
+            });
+            
+            if (!createNew.isConfirmed) {
+                return;
+            }
+            
+            this.openCreateGuestModal();
+            document.getElementById('createGuestName').value = guestName;
+            return;
+        }
+
         try {
             const response = await this.makeAuthenticatedRequest(
                 `${this.baseUrl}/add-guest/${reservationId}?nameGuest=${encodeURIComponent(guestName)}`,
@@ -1246,6 +2423,7 @@ class CalendarSystem {
             if (response.ok) {
                 this.showAlert('Hóspede adicionado com sucesso!', 'success');
                 document.getElementById('newGuestName').value = '';
+                this.hideNewGuestSuggestions();
                 await this.manageReservation(reservationId);
             } else {
                 throw new Error('Erro ao adicionar hóspede');
@@ -1276,6 +2454,64 @@ class CalendarSystem {
         } catch (error) {
             console.error('Erro ao remover hóspede:', error);
             this.showAlert('Erro ao remover hóspede', 'error');
+        }
+    }
+
+    openCreateGuestModal() {
+        const modal = document.getElementById('createGuestModal');
+        modal.style.display = 'block';
+        
+        document.getElementById('createGuestName').value = '';
+        document.getElementById('createGuestRg').value = '';
+        document.getElementById('createGuestPhone').value = '';
+        document.getElementById('createGuestEmail').value = '';
+    }
+
+    closeCreateGuestModal() {
+        document.getElementById('createGuestModal').style.display = 'none';
+    }
+
+    async submitCreateGuest() {
+        const name = document.getElementById('createGuestName').value.trim();
+        const rg = document.getElementById('createGuestRg').value.trim();
+        const phone = document.getElementById('createGuestPhone').value.trim();
+        const email = document.getElementById('createGuestEmail').value.trim();
+        
+        if (!name || !rg) {
+            this.showAlert('Nome e RG são obrigatórios', 'error');
+            return;
+        }
+        
+        try {
+            const guestData = {
+                name: name,
+                rg: rg,
+                phone: phone || 'Não informado',
+                email: email || ''
+            };
+            
+            const response = await this.makeAuthenticatedRequest('/guest/insert', {
+                method: 'POST',
+                body: JSON.stringify(guestData)
+            });
+            
+            if (response.ok) {
+                const newGuest = await response.json();
+                this.allGuests.push(newGuest);
+                
+                const newGuestInput = document.getElementById('newGuestName');
+                if (newGuestInput) {
+                    newGuestInput.value = newGuest.name;
+                }
+                
+                this.closeCreateGuestModal();
+                this.showAlert('Hóspede criado com sucesso!', 'success');
+            } else {
+                throw new Error('Erro ao criar hóspede');
+            }
+        } catch (error) {
+            console.error('Erro ao criar hóspede:', error);
+            this.showAlert('Erro ao criar hóspede: ' + error.message, 'error');
         }
     }
 
@@ -1315,12 +2551,10 @@ class CalendarSystem {
     }
 }
 
-// Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.calendarSystem = new CalendarSystem();
 });
 
-// Fechar modal ao clicar fora
 window.onclick = function(event) {
     const modals = document.querySelectorAll('.modal');
     modals.forEach(modal => {
@@ -1329,7 +2563,6 @@ window.onclick = function(event) {
         }
     });
     
-    // Recolher data expandida ao clicar fora do calendário
     if (window.calendarSystem && window.calendarSystem.expandedDate) {
         const calendar = document.getElementById('calendar');
         if (!calendar.contains(event.target)) {
@@ -1339,3 +2572,18 @@ window.onclick = function(event) {
         }
     }
 };
+
+document.addEventListener('click', (e) => {
+    const guestInput = document.getElementById('guestName');
+    const guestSuggestions = document.getElementById('guestSuggestions');
+    const roomInput = document.getElementById('roomNumber');
+    const roomSuggestions = document.getElementById('roomSuggestions');
+    
+    if (!guestInput.contains(e.target) && !guestSuggestions.contains(e.target)) {
+        guestSuggestions.classList.remove('show');
+    }
+    
+    if (!roomInput.contains(e.target) && !roomSuggestions.contains(e.target)) {
+        roomSuggestions.classList.remove('show');
+    }
+});

@@ -183,10 +183,6 @@ public class ReserveController {
 @PostMapping("/create-with-guest")
 public ResponseEntity<?> createReservationWithGuest(@RequestBody CreateReservationWithGuestRequest request) {
     try {
-        logger.info("📥 Recebendo requisição para criar reserva com " + 
-                   (request.guests() != null ? request.guests().size() : 0) + " hóspedes");
-        
-        // ✅ VALIDAÇÕES ATUALIZADAS
         if (request.guests() == null || request.guests().isEmpty()) {
             return ResponseEntity.badRequest().body("Pelo menos um hóspede deve ser informado");
         }

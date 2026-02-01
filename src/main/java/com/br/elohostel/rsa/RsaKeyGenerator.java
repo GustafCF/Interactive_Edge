@@ -24,13 +24,11 @@ public class RsaKeyGenerator {
         File privateKeyFile = new File(PRIVATE_KEY_FILE);
 
         if (publicKeyFile.exists() && privateKeyFile.exists()) {
-            // Carrega as chaves dos arquivos
             this.publicKey = loadPublicKey(publicKeyFile);
             this.privateKey = loadPrivateKey(privateKeyFile);
             logger.log(Level.INFO, "Public key loaded successfully.");
             logger.log(Level.INFO, "Private key loaded successfully.");
         } else {
-            // Gera novas chaves e salva nos arquivos
             KeyPair keyPair = generateRsaKey();
             this.publicKey = (RSAPublicKey) keyPair.getPublic();
             this.privateKey = (RSAPrivateKey) keyPair.getPrivate();

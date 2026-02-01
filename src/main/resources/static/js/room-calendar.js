@@ -8,6 +8,12 @@ class RoomCalendar {
         this.selectedDates = new Set();
         this.allReservations = [];
         this.selectedReservationId = null;
+        this.allGuests = [];
+        this.autocompleteTimeout = null;
+        this.currentAutocompleteIndex = -1;
+        this.guestAutocompleteElement = null;
+        this.isCreatingNewGuest = false;
+        
         this.init();
     }
 
@@ -15,8 +21,10 @@ class RoomCalendar {
         this.checkAuth();
         this.setupEventListeners();
         await this.loadRoomData();
+        await this.loadAllGuests();
         this.loadUserInfo();
         await this.testApiResponse();
+        this.setupAutocomplete();
     }
 
     getToken() {
@@ -43,6 +51,7 @@ class RoomCalendar {
         localStorage.removeItem('jwtToken');
         localStorage.removeItem('tokenExpiry');
         localStorage.removeItem('userInfo');
+        localStorage.removeItem('userName');
         window.location.href = '/login';
     }
 
@@ -174,42 +183,396 @@ class RoomCalendar {
         }
     }
 
+    async loadAllGuests() {
+        try {
+            this.allGuests = await this.apiRequest(`${this.API_BASE_URL}/guest/all`) || [];
+            this.allGuests.sort((a, b) => {
+                const nameA = a.name?.toLowerCase() || '';
+                const nameB = b.name?.toLowerCase() || '';
+                return nameA.localeCompare(nameB);
+            });
+            
+        } catch (error) {
+            console.error('Erro ao carregar hóspedes:', error);
+            this.showAlert('Erro ao carregar lista de hóspedes', 'error');
+        }
+    }
+
+    setupAutocomplete() {
+        const guestNameInput = document.getElementById('guestName');
+        this.guestAutocompleteElement = document.getElementById('guestAutocomplete');
+        
+        if (!guestNameInput || !this.guestAutocompleteElement) return;
+        guestNameInput.addEventListener('input', (e) => {
+            this.handleAutocompleteInput(e.target.value);
+        });
+        
+        guestNameInput.addEventListener('keydown', (e) => {
+            this.handleAutocompleteKeydown(e);
+        });
+        
+        document.addEventListener('click', (e) => {
+            if (!this.guestAutocompleteElement.contains(e.target) && e.target !== guestNameInput) {
+                this.hideAutocomplete();
+            }
+        });
+        
+        this.guestAutocompleteElement.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+        
+        guestNameInput.addEventListener('focus', () => {
+            if (guestNameInput.value.length >= 2) {
+                this.showAutocomplete(guestNameInput.value);
+            }
+        });
+    }
+
+    handleAutocompleteInput(searchTerm) {
+        clearTimeout(this.autocompleteTimeout);
+        
+        if (searchTerm.length < 2) {
+            this.hideAutocomplete();
+            return;
+        }
+        
+        this.autocompleteTimeout = setTimeout(() => {
+            this.showAutocomplete(searchTerm);
+        }, 300);
+    }
+
+    showAutocomplete(searchTerm) {
+        if (this.isCreatingNewGuest) return;
+        
+        if (!this.allGuests || this.allGuests.length === 0) {
+            this.showNoGuestsMessage();
+            return;
+        }
+        
+        const searchLower = searchTerm.toLowerCase();
+        const filteredGuests = this.allGuests.filter(guest => 
+            guest.name && guest.name.toLowerCase().includes(searchLower)
+        ).slice(0, 10); // Limitar a 10 resultados
+        
+        if (filteredGuests.length === 0) {
+            this.showNoResultsMessage(searchTerm);
+            return;
+        }
+        
+        this.renderAutocompleteItems(filteredGuests);
+        this.guestAutocompleteElement.style.display = 'block';
+        this.currentAutocompleteIndex = -1;
+    }
+
+    renderAutocompleteItems(guests) {
+        this.guestAutocompleteElement.innerHTML = '';
+        
+        guests.forEach((guest, index) => {
+            const item = document.createElement('div');
+            item.className = 'autocomplete-item';
+            item.dataset.index = index;
+            item.dataset.guestId = guest.id;
+            
+            item.innerHTML = `
+                <div class="guest-info">
+                    <div class="guest-name">${guest.name || 'Sem nome'}</div>
+                    <div class="guest-details">
+                        ${guest.rg ? `
+                            <div class="guest-detail-item">
+                                <i class="fas fa-id-card"></i>
+                                <span>${guest.rg}</span>
+                            </div>
+                        ` : ''}
+                        ${guest.phone ? `
+                            <div class="guest-detail-item">
+                                <i class="fas fa-phone"></i>
+                                <span>${guest.phone}</span>
+                            </div>
+                        ` : ''}
+                        ${guest.email ? `
+                            <div class="guest-detail-item">
+                                <i class="fas fa-envelope"></i>
+                                <span>${guest.email}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+            
+            item.addEventListener('click', () => {
+                this.selectGuest(guest);
+            });
+            
+            item.addEventListener('mouseenter', () => {
+                this.setActiveAutocompleteItem(index);
+            });
+            
+            this.guestAutocompleteElement.appendChild(item);
+        });
+        
+        this.guestAutocompleteElement.addEventListener('mouseleave', () => {
+            this.clearActiveAutocompleteItem();
+        });
+    }
+
+    showNoResultsMessage(searchTerm) {
+        this.guestAutocompleteElement.innerHTML = `
+            <div class="no-results">
+                <i class="fas fa-search"></i>
+                <span>Nenhum hóspede encontrado para "${searchTerm}"</span>
+                <div style="margin-top: 10px;">
+                    <button class="btn btn-sm btn-primary" id="createNewGuestBtn">
+                        <i class="fas fa-plus"></i> Criar novo hóspede
+                    </button>
+                </div>
+            </div>
+        `;
+        this.guestAutocompleteElement.style.display = 'block';
+        document.getElementById('createNewGuestBtn')?.addEventListener('click', () => {
+            this.openCreateGuestModal();
+        });
+    }
+
+    showNoGuestsMessage() {
+        this.guestAutocompleteElement.innerHTML = `
+            <div class="no-results">
+                <i class="fas fa-exclamation-circle"></i>
+                <span>Lista de hóspedes não carregada</span>
+            </div>
+        `;
+        this.guestAutocompleteElement.style.display = 'block';
+    }
+
+    hideAutocomplete() {
+        this.guestAutocompleteElement.style.display = 'none';
+        this.currentAutocompleteIndex = -1;
+    }
+
+    handleAutocompleteKeydown(e) {
+        const items = this.guestAutocompleteElement.querySelectorAll('.autocomplete-item');
+        if (items.length === 0) return;
+        
+        switch(e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                this.navigateAutocomplete(1, items);
+                break;
+                
+            case 'ArrowUp':
+                e.preventDefault();
+                this.navigateAutocomplete(-1, items);
+                break;
+                
+            case 'Enter':
+                e.preventDefault();
+                this.selectAutocompleteItem(items);
+                break;
+                
+            case 'Escape':
+                this.hideAutocomplete();
+                break;
+                
+            case 'Tab':
+                this.hideAutocomplete();
+                break;
+        }
+    }
+
+    navigateAutocomplete(direction, items) {
+        this.clearActiveAutocompleteItem();
+        
+        this.currentAutocompleteIndex += direction;
+        
+        if (this.currentAutocompleteIndex < 0) {
+            this.currentAutocompleteIndex = items.length - 1;
+        } else if (this.currentAutocompleteIndex >= items.length) {
+            this.currentAutocompleteIndex = 0;
+        }
+        
+        this.setActiveAutocompleteItem(this.currentAutocompleteIndex);
+        const activeItem = items[this.currentAutocompleteIndex];
+        if (activeItem) {
+            activeItem.scrollIntoView({
+                block: 'nearest',
+                behavior: 'smooth'
+            });
+        }
+    }
+
+    setActiveAutocompleteItem(index) {
+        this.clearActiveAutocompleteItem();
+        
+        const items = this.guestAutocompleteElement.querySelectorAll('.autocomplete-item');
+        if (items[index]) {
+            items[index].classList.add('active');
+            this.currentAutocompleteIndex = index;
+        }
+    }
+
+    clearActiveAutocompleteItem() {
+        const activeItem = this.guestAutocompleteElement.querySelector('.autocomplete-item.active');
+        if (activeItem) {
+            activeItem.classList.remove('active');
+        }
+    }
+
+    selectAutocompleteItem(items) {
+        if (this.currentAutocompleteIndex >= 0 && items[this.currentAutocompleteIndex]) {
+            const guestId = items[this.currentAutocompleteIndex].dataset.guestId;
+            const guest = this.allGuests.find(g => g.id == guestId);
+            if (guest) {
+                this.selectGuest(guest);
+            }
+        }
+    }
+
+    selectGuest(guest) {
+        const guestNameInput = document.getElementById('guestName');
+        guestNameInput.value = guest.name;
+        guestNameInput.dataset.guestId = guest.id;
+        
+        this.hideAutocomplete();
+        
+        this.showGuestInfo(guest);
+    }
+
+    showGuestInfo(guest) {
+        const guestNameInput = document.getElementById('guestName');
+        const existingInfo = guestNameInput.parentNode.querySelector('.guest-selected-info');
+        if (existingInfo) {
+            existingInfo.remove();
+        }
+        
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'guest-selected-info';
+        
+        const details = [];
+        if (guest.rg && guest.rg !== 'Não informado' && guest.rg !== 'A ser preenchido') {
+            details.push(`RG: ${guest.rg}`);
+        }
+        if (guest.phone && guest.phone !== 'Não informado') {
+            details.push(`Tel: ${guest.phone}`);
+        }
+        if (guest.email && guest.email !== '') {
+            details.push(`Email: ${guest.email}`);
+        }
+        
+        const detailsText = details.length > 0 ? ` | ${details.join(' | ')}` : '';
+        
+        infoDiv.innerHTML = `
+            <small>
+                <i class="fas fa-check-circle" style="color: #28a745; margin-right: 5px;"></i>
+                Hóspede selecionado: <strong>${guest.name}</strong>${detailsText}
+            </small>
+        `;
+        
+        guestNameInput.parentNode.appendChild(infoDiv);
+    }
+
+    clearGuestSelection() {
+        const guestNameInput = document.getElementById('guestName');
+        guestNameInput.value = '';
+        delete guestNameInput.dataset.guestId;
+        
+        const existingInfo = guestNameInput.parentNode.querySelector('.guest-selected-info');
+        if (existingInfo) {
+            existingInfo.remove();
+        }
+        
+        this.hideAutocomplete();
+    }
+
+    openCreateGuestModal() {
+        const guestNameInput = document.getElementById('guestName');
+        const modal = document.getElementById('createGuestModal');
+
+        document.getElementById('newGuestName').value = guestNameInput.value;
+        document.getElementById('newGuestRg').value = '';
+        document.getElementById('newGuestPhone').value = '';
+        document.getElementById('newGuestEmail').value = '';
+        
+        this.openModal('createGuestModal');
+        this.isCreatingNewGuest = true;
+        this.hideAutocomplete();
+    }
+
+    closeCreateGuestModal() {
+        this.closeModal('createGuestModal');
+        this.isCreatingNewGuest = false;
+    }
+
+    async createNewGuest() {
+        const name = document.getElementById('newGuestName').value.trim();
+        const rg = document.getElementById('newGuestRg').value.trim();
+        const phone = document.getElementById('newGuestPhone').value.trim();
+        const email = document.getElementById('newGuestEmail').value.trim();
+        
+        if (!name || name.length < 3) {
+            this.showAlert('Nome deve ter pelo menos 3 caracteres', 'error');
+            return;
+        }
+        
+        if (!rg) {
+            this.showAlert('RG é obrigatório', 'error');
+            return;
+        }
+        
+        const newGuest = {
+            name: name,
+            rg: rg || 'Não informado',
+            phone: phone || 'Não informado',
+            email: email || ''
+        };
+        
+        const submitBtn = document.getElementById('submitCreateGuestBtn');
+        const originalText = submitBtn.innerHTML;
+        
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
+        
+        try {
+            const createdGuest = await this.apiRequest(`${this.API_BASE_URL}/guest/insert`, {
+                method: 'POST',
+                body: JSON.stringify(newGuest)
+            });
+            
+            if (createdGuest) {
+                this.allGuests.push(createdGuest);
+                this.allGuests.sort((a, b) => {
+                    const nameA = a.name?.toLowerCase() || '';
+                    const nameB = b.name?.toLowerCase() || '';
+                    return nameA.localeCompare(nameB);
+                });
+                
+                this.selectGuest(createdGuest);
+                
+                this.showAlert('Novo hóspede criado com sucesso!', 'success');
+                this.closeCreateGuestModal();
+            }
+        } catch (error) {
+            console.error('Erro ao criar hóspede:', error);
+            this.showAlert('Erro ao criar novo hóspede', 'error');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    }
+
     async testApiResponse() {
         try {
-            console.log('=== TESTE DA API ===');
-            
-            // Teste 1: Verificar endpoint de reservas
             const reserves = await this.apiRequest(`${this.API_BASE_URL}/reserve/all`);
-            console.log('API /reserve/all response:', reserves);
             
             if (reserves && reserves.length > 0) {
                 const firstReserve = reserves[0];
-                console.log('Primeira reserva detalhada:', firstReserve);
-                console.log('Estrutura dos quartos na primeira reserva:', firstReserve.rooms);
-                console.log('Tipo de rooms:', typeof firstReserve.rooms);
-                console.log('É array?', Array.isArray(firstReserve.rooms));
-                
                 if (firstReserve.rooms) {
                     const roomsArray = Array.isArray(firstReserve.rooms) ? firstReserve.rooms : Array.from(firstReserve.rooms || []);
-                    console.log('Quartos como array:', roomsArray);
-                    
-                    // Verificar estrutura de cada quarto
                     roomsArray.forEach((room, index) => {
-                        console.log(`Quarto ${index}:`, {
-                            id: room.id,
-                            number: room.number,
-                            roomType: room.roomType,
-                            hasNumber: !!room.number,
-                            numberType: typeof room.number
-                        });
                     });
                 }
             }
             
-            // Teste 2: Verificar endpoint do quarto
             if (this.currentRoom) {
                 const room = await this.apiRequest(`${this.API_BASE_URL}/room/find/${this.currentRoom.id}`);
-                console.log('API /room/find response:', room);
             }
             
         } catch (error) {
@@ -223,16 +586,9 @@ class RoomCalendar {
         calendarLoading.style.display = 'flex';
 
         try {
-            // Carregar todas as reservas
             this.allReservations = await this.apiRequest(`${this.API_BASE_URL}/reserve/all`) || [];
-            
-            console.log('=== RESERVAS CARREGADAS DA API ===');
-            console.log('Total de reservas:', this.allReservations.length);
-            console.log('Reservas completas:', this.allReservations);
-            
-            // Converter currentRoom para tipos consistentes
             const currentRoomId = Number(this.currentRoom.id);
-            const currentRoomNumber = String(this.currentRoom.number); // Converter para string
+            const currentRoomNumber = String(this.currentRoom.number);
             
             console.log('Parâmetros para filtro:', {
                 currentRoomId,
@@ -242,28 +598,22 @@ class RoomCalendar {
                 currentRoomOriginal: this.currentRoom
             });
             
-            // Filtrar reservas para o quarto específico - VERSÃO ROBUSTA
             this.roomReservations = this.allReservations.filter(reserve => {
-                // Ignorar reservas canceladas
                 if (reserve.reserveStatus === 'CANCELLED') {
                     console.log(`Reserva ${reserve.id} ignorada (CANCELLED)`);
                     return false;
                 }
                 
-                // Verificar se a reserva tem quartos
                 if (!reserve.rooms) {
                     console.log(`Reserva ${reserve.id} não tem quartos`);
                     return false;
                 }
-                
-                // Converter Set para Array se necessário
                 let roomsArray = [];
                 if (Array.isArray(reserve.rooms)) {
                     roomsArray = reserve.rooms;
                 } else if (reserve.rooms instanceof Set) {
                     roomsArray = Array.from(reserve.rooms);
                 } else if (typeof reserve.rooms === 'object' && reserve.rooms !== null) {
-                    // Pode ser um objeto ou Map
                     if (reserve.rooms[Symbol.iterator]) {
                         roomsArray = Array.from(reserve.rooms);
                     } else {
@@ -271,53 +621,25 @@ class RoomCalendar {
                     }
                 }
                 
-                console.log(`Reserva ${reserve.id} - Quartos encontrados:`, roomsArray);
-                
-                // Verificar se algum quarto tem o número ou ID igual ao quarto atual
                 const hasThisRoom = roomsArray.some(room => {
                     if (!room || typeof room !== 'object') {
                         console.log(`Reserva ${reserve.id} - Quarto inválido:`, room);
                         return false;
                     }
-                    
-                    // Tentar obter número do quarto de várias formas
+                
                     const roomId = room.id;
                     const roomNumber = room.number || room.roomNumber || room.num;
-                    
-                    // Log para debug
-                    console.log(`Reserva ${reserve.id} - Comparando quarto:`, {
-                        roomId,
-                        roomNumber,
-                        roomIdType: typeof roomId,
-                        roomNumberType: typeof roomNumber,
-                        currentRoomId,
-                        currentRoomNumber
-                    });
-                    
-                    // Comparar tanto por ID quanto por número (ambos como string)
                     const roomIdMatch = String(roomId) === String(currentRoomId);
                     const roomNumberMatch = String(roomNumber) === currentRoomNumber;
                     
                     const match = roomIdMatch || roomNumberMatch;
-                    
-                    if (match) {
-                        console.log(`✅ Reserva ${reserve.id} - ENCONTRADA CORRESPONDÊNCIA!`);
-                        console.log(`   Quarto da reserva: ID=${roomId}, Número=${roomNumber}`);
-                        console.log(`   Quarto atual: ID=${currentRoomId}, Número=${currentRoomNumber}`);
-                    }
-                    
                     return match;
                 });
                 
                 console.log(`Reserva ${reserve.id} pertence ao quarto ${this.currentRoom.number}? ${hasThisRoom}`);
                 return hasThisRoom;
             });
-            
-            console.log(`=== RESULTADO DO FILTRO ===`);
-            console.log(`Reservas filtradas para o quarto ${this.currentRoom.number}:`, this.roomReservations.length);
-            console.log('Reservas detalhadas:', this.roomReservations);
-            
-            this.debugRoomReservations(); // Debug detalhado das reservas
+            this.debugRoomReservations();
             
             this.renderCalendar();
         } catch (error) {
@@ -329,18 +651,8 @@ class RoomCalendar {
     }
 
     debugRoomReservations() {
-        console.log('=== DEBUG DETALHADO DAS RESERVAS DO QUARTO ===');
-        console.log('Quarto atual:', this.currentRoom);
-        console.log(`Total de reservas carregadas: ${this.allReservations.length}`);
-        console.log(`Reservas filtradas para quarto ${this.currentRoom.number}: ${this.roomReservations.length}`);
-        
         if (this.allReservations.length > 0) {
-            console.log('\n=== DETALHES DE TODAS AS RESERVAS ===');
             this.allReservations.forEach((reserve, index) => {
-                console.log(`\nReserva ${index + 1} - ID: ${reserve.id}`);
-                console.log('Status:', reserve.reserveStatus);
-                
-                // Mostrar quartos
                 if (reserve.rooms) {
                     let roomsArray = [];
                     if (Array.isArray(reserve.rooms)) {
@@ -849,10 +1161,12 @@ class RoomCalendar {
         this.selectedDates.clear();
         this.updateSelectedDatesDisplay();
         this.renderCalendar();
+        this.clearGuestSelection(); // Limpar seleção do hóspede
     }
 
     validateReservationForm() {
-        const guestName = document.getElementById('guestName').value.trim();
+        const guestNameInput = document.getElementById('guestName');
+        const guestName = guestNameInput.value.trim();
         const guestNameError = document.getElementById('guestNameError');
         
         guestNameError.textContent = '';
@@ -870,6 +1184,16 @@ class RoomCalendar {
         } else if (guestName.length < 3) {
             guestNameError.textContent = 'Nome deve ter pelo menos 3 caracteres';
             isValid = false;
+        } else {
+            // Verificar se o hóspede existe na lista
+            const guestExists = this.allGuests.some(g => 
+                g.name && g.name.toLowerCase() === guestName.toLowerCase()
+            );
+            
+            if (!guestExists) {
+                guestNameError.textContent = 'Hóspede não encontrado. Digite um nome válido ou selecione da lista';
+                isValid = false;
+            }
         }
         
         return isValid;
@@ -882,7 +1206,8 @@ class RoomCalendar {
             return;
         }
 
-        const guestName = document.getElementById('guestName').value.trim();
+        const guestNameInput = document.getElementById('guestName');
+        const guestName = guestNameInput.value.trim();
         const reserveBtn = document.getElementById('reserveBtn');
         
         reserveBtn.disabled = true;
@@ -1245,6 +1570,7 @@ class RoomCalendar {
         const modal = document.getElementById(modalId);
         if (modal) {
             modal.style.display = 'block';
+            document.body.style.overflow = 'hidden'; // Prevenir scroll
         }
     }
 
@@ -1252,6 +1578,13 @@ class RoomCalendar {
         const modal = document.getElementById(modalId);
         if (modal) {
             modal.style.display = 'none';
+            document.body.style.overflow = 'auto'; // Restaurar scroll
+            
+            // Limpar formulário do modal de criação de hóspede
+            if (modalId === 'createGuestModal') {
+                document.getElementById('createGuestForm').reset();
+                this.isCreatingNewGuest = false;
+            }
         }
     }
 
@@ -1355,6 +1688,7 @@ class RoomCalendar {
             }
         });
 
+        // Modals
         document.getElementById('closeManageModal').addEventListener('click', () => {
             this.closeModal('manageModal');
         });
@@ -1377,29 +1711,64 @@ class RoomCalendar {
             this.cancelReservationById();
         });
 
+        // Modal de criação de hóspede
+        document.getElementById('closeCreateGuestModal').addEventListener('click', () => {
+            this.closeCreateGuestModal();
+        });
+
+        document.getElementById('cancelCreateGuestBtn').addEventListener('click', () => {
+            this.closeCreateGuestModal();
+        });
+
+        document.getElementById('createGuestForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.createNewGuest();
+        });
+
+        // Fechar modals ao clicar fora
         window.addEventListener('click', (event) => {
             const modals = document.querySelectorAll('.modal');
             modals.forEach(modal => {
                 if (event.target === modal) {
                     modal.style.display = 'none';
+                    document.body.style.overflow = 'auto';
+                    
                     if (modal.id === 'cancelReservationModal') {
                         this.selectedReservationId = null;
+                    }
+                    
+                    if (modal.id === 'createGuestModal') {
+                        this.isCreatingNewGuest = false;
                     }
                 }
             });
         });
 
+        // Fechar modals com ESC
         window.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') {
                 const modals = document.querySelectorAll('.modal');
                 modals.forEach(modal => {
                     if (modal.style.display === 'block') {
                         modal.style.display = 'none';
+                        document.body.style.overflow = 'auto';
+                        
                         if (modal.id === 'cancelReservationModal') {
                             this.selectedReservationId = null;
                         }
+                        
+                        if (modal.id === 'createGuestModal') {
+                            this.isCreatingNewGuest = false;
+                        }
                     }
                 });
+            }
+        });
+
+        // Fechar autocomplete quando o usuário rolar a página
+        window.addEventListener('scroll', () => {
+            if (this.guestAutocompleteElement.style.display === 'block') {
+                this.hideAutocomplete();
             }
         });
     }

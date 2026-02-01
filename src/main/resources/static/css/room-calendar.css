@@ -101,9 +101,8 @@ body {
     overflow: hidden;
     top: 100%;
     left: 0;
-    /* Adiciona uma borda transparente ao redor para aumentar área de hover */
     border: 8px solid transparent;
-    margin: -8px; /* Compensa a borda */
+    margin: -8px;
 }
 
 .dropdown-content a {
@@ -491,6 +490,10 @@ body {
     padding: 1rem;
     border-radius: 4px;
     margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: slideIn 0.3s ease;
 }
 
 .alert-success {
@@ -503,6 +506,53 @@ body {
     background-color: #f8d7da;
     border: 1px solid #f5c6cb;
     color: #721c24;
+}
+
+.alert-warning {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+}
+
+.alert-info {
+    background-color: #d1ecf1;
+    border: 1px solid #bee5eb;
+    color: #0c5460;
+}
+
+.alert-close {
+    margin-left: auto;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: inherit;
+    opacity: 0.7;
+}
+
+.alert-close:hover {
+    opacity: 1;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOut {
+    from {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
 }
 
 /* Modal Styles */
@@ -559,6 +609,7 @@ body {
 /* Form Styles */
 .form-group {
     margin-bottom: 1rem;
+    position: relative;
 }
 
 .form-label {
@@ -609,6 +660,111 @@ body {
     font-size: 1rem;
 }
 
+/* Autocomplete Styles */
+.autocomplete-dropdown {
+    position: absolute;
+    z-index: 1000;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    max-height: 200px;
+    overflow-y: auto;
+    display: none;
+    width: 100%;
+    margin-top: 2px;
+}
+
+.autocomplete-item {
+    padding: 10px 15px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.autocomplete-item:hover {
+    background-color: #f5f5f5;
+}
+
+.autocomplete-item.active {
+    background-color: #e3f2fd;
+}
+
+.guest-info {
+    flex: 1;
+}
+
+.guest-name {
+    font-weight: bold;
+    color: #333;
+}
+
+.guest-details {
+    font-size: 0.8rem;
+    color: #666;
+    display: flex;
+    gap: 10px;
+    margin-top: 2px;
+}
+
+.guest-detail-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.guest-detail-item i {
+    font-size: 0.7rem;
+}
+
+.no-results {
+    padding: 15px;
+    text-align: center;
+    color: #999;
+    font-style: italic;
+}
+
+.hint-text {
+    margin-top: 5px;
+    color: #666;
+    font-size: 0.8rem;
+}
+
+.hint-text i {
+    margin-right: 5px;
+}
+
+.guest-selected-info {
+    margin-top: 5px;
+    padding: 5px 10px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    border-left: 3px solid var(--green);
+}
+
+/* Error Message */
+.error-message {
+    color: #dc3545;
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+}
+
+/* Warning Box */
+.warning-box {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+    padding: 0.75rem;
+    border-radius: 4px;
+    margin-top: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
 /* Management Styles */
 .management-section {
     margin-bottom: 1.5rem;
@@ -631,6 +787,26 @@ body {
     gap: 1rem;
     margin-top: 1rem;
     flex-wrap: wrap;
+}
+
+/* Modal Footer */
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid #eee;
+}
+
+/* Small Modal */
+.small-modal {
+    max-width: 400px;
+}
+
+/* Card Spacing */
+.card-spacing {
+    height: 1.5rem;
 }
 
 /* Responsive */
@@ -677,6 +853,14 @@ body {
 
     .quick-actions {
         flex-direction: column;
+    }
+
+    .modal-footer {
+        flex-direction: column;
+    }
+
+    .modal-footer .btn {
+        width: 100%;
     }
 
     /* Dropdown responsivo */
@@ -729,5 +913,10 @@ body {
         min-width: 160px;
         border: 3px solid transparent;
         margin: -3px;
+    }
+    
+    .modal-content {
+        width: 95%;
+        padding: 1rem;
     }
 }

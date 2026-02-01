@@ -503,7 +503,6 @@ public class ReserveService {
 
         removeOccupations(reserve);
 
-        logger.info("Reserve cancelled successfully: " + reserveId);
         return cancelledReserve;
     }
 
@@ -585,15 +584,10 @@ public class ReserveService {
     public Reserve addDate(Long reserveId, LocalDate newDate) {
         Reserve reserve = reserveRepo.findById(reserveId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reserve not found with id: " + reserveId));
-
         validateReserveCanBeModified(reserve);
-
         validateNewDate(newDate);
-
         validateAvailability(reserve, newDate);
-
         Set<LocalDate> updatedDates = new HashSet<>(reserve.getReservedDays());
-        
         if (updatedDates.contains(newDate)) {
             throw new IllegalStateException("Date " + newDate + " is already included in the reservation");
         }
@@ -738,8 +732,7 @@ public class ReserveService {
         reserve.getReservedDays().remove(date);
                 if (Boolean.FALSE.equals(reserve.getUseCustomValue())) {
             BigDecimal newTotal = reserve.calculateTotalValue();
-            logger.info("📅 Data removida. Novo valor calculado: " + newTotal + 
-                       " (Dias: " + reserve.getNumberOfDays() + ")");
+            
         }
         
         reserveRepo.save(reserve);    
@@ -759,27 +752,20 @@ public class ReserveService {
         }
 
         Set<LocalDate> updatedDates = new HashSet<>(reserve.getReservedDays());
-        
         for (LocalDate newDate : newDates.dates()) {
             if (updatedDates.contains(newDate)) {
                 throw new IllegalStateException("Date " + newDate + " is already included in the reservation");
             }
             updatedDates.add(newDate);
         }
-
         reserve.setReservedDays(updatedDates);
-
         if (Boolean.FALSE.equals(reserve.getUseCustomValue())) {
             BigDecimal newTotal = reserve.calculateTotalValue();
         }
-
         for (LocalDate newDate : newDates.dates()) {
             updateOccupationsForNewDate(reserve, newDate);
         }
-
         Reserve updatedReserve = reserveRepo.save(reserve);
-        logger.info("Dates added successfully to reserve " + reserveId + ": " + newDates);
-        
         return updatedReserve;
     }
 
@@ -861,14 +847,11 @@ public class ReserveService {
         for (Room room : rooms) {
             if (room.isExclusiveRoom() || room.isSharedBathroom() || room.isStudio() || room.isSuite()) {
                 room.setRoomStatus(RoomStatus.VAGUE);
-                logger.info("✅ Quarto exclusivo " + room.getNumber() + " liberado para VAGUE");
-                
             } else if (room.isSharedRoom()) {
                 Bed reservedBed = findBedForReserveInRoom(reserve, room);
                 if (reservedBed != null) {
                     reservedBed.setBedStatus(BedStatus.VAGUE);
                     bedRepo.save(reservedBed);
-                    logger.info("✅ Cama " + reservedBed.getId() + " no quarto compartilhado " + room.getNumber() + " liberada para VAGUE");
                     updateSharedRoomStatus(room);
                 }
             }
@@ -889,7 +872,7 @@ public class ReserveService {
                     .orElse(null);
                     
         } catch (Exception e) {
-            logger.warning("❌ Erro ao buscar cama para reserva " + reserve.getId() + " no quarto " + room.getNumber());
+            logger.warning("Erro ao buscar cama para reserva " + reserve.getId() + " no quarto " + room.getNumber());
             return null;
         }
     }
@@ -906,17 +889,12 @@ public class ReserveService {
         if (occupiedBeds == totalBeds) {
             if (room.getRoomStatus() != RoomStatus.OCCUPIED) {
                 room.setRoomStatus(RoomStatus.OCCUPIED);
-                logger.info("🏨 Quarto compartilhado " + room.getNumber() + " agora está OCCUPIED (todas as " + totalBeds + " camas ocupadas)");
             }
         } else if (occupiedBeds == 0) {
             if (room.getRoomStatus() != RoomStatus.VAGUE) {
                 room.setRoomStatus(RoomStatus.VAGUE);
-                logger.info("🏨 Quarto compartilhado " + room.getNumber() + " agora está VAGUE (todas as " + totalBeds + " camas vagas)");
             }
-        } else {
-            logger.info("🔸 Quarto compartilhado " + room.getNumber() + " tem " + occupiedBeds + "/" + totalBeds + " camas ocupadas");
-        }
-        
+        } 
         roomRepo.save(room);
     }
 
@@ -960,52 +938,52 @@ public class ReserveService {
     //     message = String.format("%s em manutenção", roomTypeDescription);
     // }
     
-    Map<String, Object> response = new HashMap<>();
-    response.put("available", isAvailable);
-    response.put("message", message);
-    response.put("roomNumber", roomNumber);
-    response.put("roomType", roomTypeDescription);
-    response.put("roomTypeEnum", room.getRoomType().name());
-    response.put("roomStatus", room.getRoomStatus() != null ? room.getRoomStatus().name() : "UNKNOWN");
-    response.put("price", room.getPrice());
-    response.put("requestedDates", new ArrayList<>(requestedDates)); 
-    response.put("checkIn", checkIn);
-    response.put("checkOut", checkOut);
-    response.put("numberOfNights", requestedDates.size());
-    return response;
-}
+        Map<String, Object> response = new HashMap<>();
+        response.put("available", isAvailable);
+        response.put("message", message);
+        response.put("roomNumber", roomNumber);
+        response.put("roomType", roomTypeDescription);
+        response.put("roomTypeEnum", room.getRoomType().name());
+        response.put("roomStatus", room.getRoomStatus() != null ? room.getRoomStatus().name() : "UNKNOWN");
+        response.put("price", room.getPrice());
+        response.put("requestedDates", new ArrayList<>(requestedDates)); 
+        response.put("checkIn", checkIn);
+        response.put("checkOut", checkOut);
+        response.put("numberOfNights", requestedDates.size());
+        return response;
+    }
 
-private void validateDates(LocalDate checkIn, LocalDate checkOut) {
-    if (checkIn == null || checkOut == null) {
-        throw new IllegalArgumentException("Check-in e check-out são obrigatórios");
+    private void validateDates(LocalDate checkIn, LocalDate checkOut) {
+        if (checkIn == null || checkOut == null) {
+            throw new IllegalArgumentException("Check-in e check-out são obrigatórios");
+        }
+        
+        LocalDate today = LocalDate.now();
+        if (checkIn.isBefore(today)) {
+            throw new IllegalArgumentException("Check-in não pode ser no passado");
+        }
+        
+        if (checkIn.isAfter(checkOut) || checkIn.equals(checkOut)) {
+            throw new IllegalArgumentException("Data de check-in deve ser anterior à data de check-out");
+        }
+        
+        LocalDate maxDate = today.plusYears(1);
+        if (checkOut.isAfter(maxDate)) {
+            throw new IllegalArgumentException("Reservas não podem ser feitas para mais de 1 ano no futuro");
+        }
     }
-    
-    LocalDate today = LocalDate.now();
-    if (checkIn.isBefore(today)) {
-        throw new IllegalArgumentException("Check-in não pode ser no passado");
-    }
-    
-    if (checkIn.isAfter(checkOut) || checkIn.equals(checkOut)) {
-        throw new IllegalArgumentException("Data de check-in deve ser anterior à data de check-out");
-    }
-    
-    LocalDate maxDate = today.plusYears(1);
-    if (checkOut.isAfter(maxDate)) {
-        throw new IllegalArgumentException("Reservas não podem ser feitas para mais de 1 ano no futuro");
-    }
-}
 
-private Set<LocalDate> getDatesBetween(LocalDate startDate, LocalDate endDate) {
-    Set<LocalDate> dates = new HashSet<>();
-    LocalDate currentDate = startDate;
-    
-    while (currentDate.isBefore(endDate)) {
-        dates.add(currentDate);
-        currentDate = currentDate.plusDays(1);
+    private Set<LocalDate> getDatesBetween(LocalDate startDate, LocalDate endDate) {
+        Set<LocalDate> dates = new HashSet<>();
+        LocalDate currentDate = startDate;
+        
+        while (currentDate.isBefore(endDate)) {
+            dates.add(currentDate);
+            currentDate = currentDate.plusDays(1);
+        }
+        
+        return dates;
     }
-    
-    return dates;
-}
 
     @Transactional
     public void delete(Long id) {
@@ -1014,7 +992,6 @@ private Set<LocalDate> getDatesBetween(LocalDate startDate, LocalDate endDate) {
                     .orElseThrow(() -> new ResourceNotFoundException(id));            
             List<RoomOccupation> roomOccupations = roomOccupationRepo.findByReserve(reserve);
             if (!roomOccupations.isEmpty()) {
-                logger.info("📤 Removendo " + roomOccupations.size() + " room occupations");
                 roomOccupationRepo.deleteAll(roomOccupations);
             }
 
@@ -1043,11 +1020,7 @@ private Set<LocalDate> getDatesBetween(LocalDate startDate, LocalDate endDate) {
                 roomRepo.saveAll(reserve.getRooms());
             }
             reserveRepo.saveAndFlush(reserve);
-
             reserveRepo.delete(reserve);
-            
-            logger.info("✅ Reserva #" + id + " excluída com sucesso");
-
         } catch (Exception e) {
             throw new RuntimeException("Falha ao excluir reserva: " + e.getMessage(), e);
         }

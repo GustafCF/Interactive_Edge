@@ -25,8 +25,7 @@
                         <a th:href="@{/funcionarios}"><i class="fas fa-user-tie"></i> Funcionários</a>
                     </div>
                 </div>
-                <div class="user-info" id="userInfo">
-                </div>
+                <div class="user-info" id="userInfo"></div>
                 <a href="#" class="nav-link" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Sair</a>
             </nav>
         </div>
@@ -54,48 +53,51 @@
                             <button id="todayBtn" class="btn btn-sm">Hoje</button>
                         </div>
                     </div>
-                    <div class="calendar" id="calendar">
-                    </div>
+                    <div class="calendar" id="calendar"></div>
                 </div>
                 <div id="reservationForm" class="reservation-form">
                     <h3>Nova Reserva</h3>
                     <form id="reserveForm">
                         <div class="form-group">
                             <label class="form-label">Datas Selecionadas</label>
-                            <div id="selectedDates" class="selected-dates">
-                            </div>
+                            <div id="selectedDates" class="selected-dates"></div>
                         </div>
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="guestName" class="form-label">Nome do Hóspede</label>
-                                <input 
-                                    type="text" 
-                                    id="guestName" 
-                                    name="guestName" 
-                                    class="form-control" 
-                                    placeholder="Digite o nome do hóspede"
-                                    required
-                                >
+                                <div class="autocomplete-container">
+                                    <input 
+                                        type="text" 
+                                        id="guestName" 
+                                        name="guestName" 
+                                        class="form-control" 
+                                        placeholder="Digite o nome do hóspede"
+                                        autocomplete="off"
+                                        required
+                                    >
+                                    <div id="guestSuggestions" class="autocomplete-suggestions"></div>
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label for="roomNumber" class="form-label">Número do Quarto</label>
-                                <input 
-                                    type="number" 
-                                    id="roomNumber" 
-                                    name="roomNumber" 
-                                    class="form-control" 
-                                    placeholder="Digite o número do quarto"
-                                    required
-                                >
+                                <div class="autocomplete-container">
+                                    <input 
+                                        type="number" 
+                                        id="roomNumber" 
+                                        name="roomNumber" 
+                                        class="form-control" 
+                                        placeholder="Digite o número do quarto"
+                                        autocomplete="off"
+                                        required
+                                    >
+                                    <div id="roomSuggestions" class="autocomplete-suggestions"></div>
+                                </div>
                             </div>
                         </div>
+                        <div id="reservationPreview" class="reservation-preview"></div>
                         <div class="form-group">
-                            <button type="submit" id="reserveBtn" class="btn btn-primary">
-                                Reservar
-                            </button>
-                            <button type="button" id="cancelReservationBtn" class="btn btn-danger">
-                                Cancelar
-                            </button>
+                            <button type="submit" id="reserveBtn" class="btn btn-primary">Reservar</button>
+                            <button type="button" id="cancelReservationBtn" class="btn btn-danger">Cancelar</button>
                         </div>
                     </form>
                 </div>
@@ -108,6 +110,8 @@
             </div>
         </div>
     </main>
+
+    <!-- Modal de Gerenciamento de Reserva -->
     <div id="manageModal" class="modal">
         <div class="modal-content" style="max-width: 800px;">
             <div class="modal-header">
@@ -115,11 +119,12 @@
                 <span class="close" onclick="calendarSystem.closeManageModal()">&times;</span>
             </div>
             <div class="management-card">
-                <div id="manageReservationContent">
-                </div>
+                <div id="manageReservationContent"></div>
             </div>
         </div>
     </div>
+
+    <!-- Modal para Adicionar Datas -->
     <div id="addDatesModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -143,46 +148,67 @@
             </div>
             <div id="dateAvailabilityResult"></div>
             <div class="quick-actions" style="display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
-                <button class="btn btn-success" onclick="calendarSystem.checkDateAvailability()">
-                    Verificar Disponibilidade
-                </button>
-                <button class="btn btn-primary" onclick="calendarSystem.addSingleDate()">
-                    Adicionar Data Única
-                </button>
-                <button class="btn btn-info" onclick="calendarSystem.addDateRange()">
-                    Adicionar Período
-                </button>
-                <button class="btn btn-danger" onclick="calendarSystem.closeAddDatesModal()">
-                    Cancelar
-                </button>
+                <button class="btn btn-success" onclick="calendarSystem.checkDateAvailability()">Verificar Disponibilidade</button>
+                <button class="btn btn-primary" onclick="calendarSystem.addSingleDate()">Adicionar Data Única</button>
+                <button class="btn btn-info" onclick="calendarSystem.addDateRange()">Adicionar Período</button>
+                <button class="btn btn-danger" onclick="calendarSystem.closeAddDatesModal()">Cancelar</button>
             </div>
         </div>
     </div>
-    <div id="addRoomModal" class="modal">
+
+    <!-- Modal de Quartos Disponíveis -->
+    <div id="availableRoomsModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 class="modal-title">Adicionar Quarto</h3>
-                <span class="close" onclick="calendarSystem.closeAddRoomModal()">&times;</span>
+                <h3 class="modal-title">Quartos Disponíveis</h3>
+                <span class="close" onclick="calendarSystem.closeAvailableRoomsModal()">&times;</span>
             </div>
-            <div class="form-group">
-                <label class="form-label">Número do Quarto</label>
-                <input type="number" id="newRoomNumber" class="form-control" placeholder="Número do quarto">
+            <div id="availableRoomsList" class="available-rooms-list"></div>
+        </div>
+    </div>
+
+    <!-- Modal de Criar Novo Hóspede -->
+    <div id="createGuestModal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-user-plus"></i> Criar Novo Hóspede</h3>
+                <span class="close" onclick="calendarSystem.closeCreateGuestModal()">&times;</span>
             </div>
-            <div class="quick-actions" style="display: flex; gap: 1rem; margin-top: 1rem;">
-                <button class="btn btn-primary" onclick="calendarSystem.addRoom()">
-                    Adicionar Quarto
-                </button>
-                <button class="btn btn-danger" onclick="calendarSystem.closeAddRoomModal()">
-                    Cancelar
-                </button>
+            <div class="modal-body">
+                <form id="createGuestForm" onsubmit="return false;">
+                    <div class="form-group">
+                        <label for="createGuestName" class="form-label">Nome Completo *</label>
+                        <input type="text" id="createGuestName" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="createGuestRg" class="form-label">RG *</label>
+                        <input type="text" id="createGuestRg" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="createGuestPhone" class="form-label">Telefone</label>
+                        <input type="tel" id="createGuestPhone" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="createGuestEmail" class="form-label">Email</label>
+                        <input type="email" id="createGuestEmail" class="form-control">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="calendarSystem.closeCreateGuestModal()">Cancelar</button>
+                <button class="btn btn-primary" onclick="calendarSystem.submitCreateGuest()"><i class="fas fa-save"></i> Salvar Hóspede</button>
             </div>
         </div>
     </div>
+
     <footer class="footer">
         <div class="container">
             <p><strong>&copy; Interactive Edge System</strong></p>
         </div>
     </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script th:src="@{/js/calendario.js}"></script>
 </body>
