@@ -1,5 +1,7 @@
-// const API_BASE_URL = 'http://191.217.217.80:8080/room';
-const API_BASE_URL = 'http://localhost:8080/room';
+// const API_BASE_URL = 'http://177.1.73.145:8080/room';
+// const API_BASE_URL = 'http://localhost:8080/room';
+const API_BASE_URL = 'http://192.168.1.100:8080/room';
+
 let currentRooms = [];
 let currentFilter = 'all';
 let currentBedRoomId = null;
@@ -19,7 +21,6 @@ const availableRoomsElement = document.getElementById('availableRooms');
 const occupiedRoomsElement = document.getElementById('occupiedRooms');
 const sharedRoomsElement = document.getElementById('sharedRooms');
 
-// Função para ordenar quartos
 function sortRooms() {
     currentRooms.sort((a, b) => {
         if (sortOrder === 'asc') {
@@ -31,14 +32,12 @@ function sortRooms() {
     renderRooms();
 }
 
-// Função para alternar a ordem de classificação
 function toggleSortOrder() {
     sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
     sortRooms();
     updateSortButtonText();
 }
 
-// Função para atualizar o texto do botão de ordenação
 function updateSortButtonText() {
     const sortBtn = document.getElementById('sortRoomsBtn');
     if (sortBtn) {
@@ -46,7 +45,6 @@ function updateSortButtonText() {
     }
 }
 
-// Função para obter o badge do tipo de quarto
 function getRoomTypeBadge(roomType) {
     switch(roomType) {
         case 'SHARED':
@@ -64,12 +62,10 @@ function getRoomTypeBadge(roomType) {
     }
 }
 
-// Função para obter o token JWT
 function getToken() {
     return localStorage.getItem('jwtToken');
 }
 
-// Função para verificar autenticação
 function checkAuth() {
     const token = getToken();
     if (!token) {
@@ -77,7 +73,6 @@ function checkAuth() {
         return false;
     }
     
-    // Verificar se o token expirou
     const tokenExpiry = localStorage.getItem('tokenExpiry');
     if (tokenExpiry && Date.now() > parseInt(tokenExpiry)) {
         logout();
@@ -115,7 +110,6 @@ async function loadUserInfo() {
     }
 }
 
-// Função para mostrar alertas
 function showAlert(message, type = 'success') {
     const alert = document.createElement('div');
     alert.className = `alert alert-${type}`;
@@ -128,7 +122,6 @@ function showAlert(message, type = 'success') {
     }, 5000);
 }
 
-// Função para fazer requisições à API
 async function apiRequest(url, options = {}) {
     const token = getToken();
     
@@ -162,7 +155,6 @@ async function apiRequest(url, options = {}) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        // Para respostas sem conteúdo (como DELETE)
         if (response.status === 204) {
             return { success: true };
         }
@@ -175,7 +167,6 @@ async function apiRequest(url, options = {}) {
     }
 }
 
-// Carregar lista de quartos
 async function loadRooms() {
     if (!checkAuth()) return;
 
@@ -187,13 +178,12 @@ async function loadRooms() {
     
     if (rooms) {
         currentRooms = rooms;
-        sortRooms(); // Ordenar após carregar
+        sortRooms();
         updateStatistics();
         renderRooms();
     }
 }
 
-// Atualizar estatísticas
 function updateStatistics() {
     const total = currentRooms.length;
     const available = currentRooms.filter(room => room.roomStatus === 'VAGUE').length;
@@ -206,7 +196,6 @@ function updateStatistics() {
     sharedRoomsElement.textContent = shared;
 }
 
-// Renderizar tabela de quartos
 function renderRooms() {
     roomsTableBody.innerHTML = '';
 
@@ -336,7 +325,6 @@ function renderBeds(beds) {
     });
 }
 
-// Adicionar cama
 async function addBed() {
     if (!currentBedRoomId) return;
     
@@ -346,14 +334,11 @@ async function addBed() {
     
     if (result) {
         showAlert('Cama adicionada com sucesso!');
-        // Atualizar a lista de camas
         manageBeds(currentBedRoomId, document.getElementById('bedRoomNumber').textContent);
-        // Atualizar a lista principal de quartos
         loadRooms();
     }
 }
 
-// Remover cama
 async function removeBed() {
     if (!currentBedRoomId) return;
     
@@ -363,21 +348,17 @@ async function removeBed() {
     
     if (result) {
         showAlert('Cama removida com sucesso!');
-        // Atualizar a lista de camas
         manageBeds(currentBedRoomId, document.getElementById('bedRoomNumber').textContent);
-        // Atualizar a lista principal de quartos
         loadRooms();
     }
 }
 
-// Confirmar exclusão
 function confirmDelete(roomId, roomNumber) {
     document.getElementById('confirmRoomNumber').textContent = roomNumber;
     document.getElementById('confirmDeleteBtn').onclick = () => deleteRoom(roomId);
     confirmModal.style.display = 'block';
 }
 
-// Excluir quarto
 async function deleteRoom(roomId) {
     if (!checkAuth()) return;
 
@@ -392,20 +373,16 @@ async function deleteRoom(roomId) {
     }
 }
 
-// Fechar modal
 function closeModal(modal) {
     modal.style.display = 'none';
 }
 
-// Filtrar quartos
 function filterRooms(filter) {
     currentFilter = filter;
     renderRooms();
 }
 
-// Anexar event listeners aos botões dinâmicos
 function attachDynamicEventListeners() {
-    // Botões de gerenciar camas
     document.querySelectorAll('.manage-beds-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const roomId = btn.getAttribute('data-room-id');
@@ -414,7 +391,6 @@ function attachDynamicEventListeners() {
         });
     });
     
-    // Botões de ver calendário
     document.querySelectorAll('.view-calendar-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const roomId = btn.getAttribute('data-room-id');
@@ -423,7 +399,6 @@ function attachDynamicEventListeners() {
         });
     });
     
-    // Botões de editar quarto
     document.querySelectorAll('.edit-room-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const roomId = btn.getAttribute('data-room-id');
@@ -431,7 +406,6 @@ function attachDynamicEventListeners() {
         });
     });
     
-    // Botões de excluir quarto
     document.querySelectorAll('.delete-room-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const roomId = btn.getAttribute('data-room-id');

@@ -1,6 +1,8 @@
 class FuncionarioManager {
     constructor() {
-        this.baseUrl = 'http://localhost:8080/us';
+        // this.baseUrl = 'http://localhost:8080/us';
+        // this.baseUrl = 'http://177.1.73.145:8080/us';
+        this.baseUrl = 'http://192.168.1.100:8080/us';
         this.token = localStorage.getItem('jwtToken');
         this.currentPage = 1;
         this.itemsPerPage = 10;
@@ -8,10 +10,8 @@ class FuncionarioManager {
         this.funcionarios = [];
         this.currentEditId = null;
         
-        // Verificar autenticação primeiro
         this.checkAuthentication();
         
-        // Depois inicializar o resto
         if (this.token) {
             this.initEventListeners();
             this.loadFuncionarios();
@@ -54,7 +54,6 @@ class FuncionarioManager {
     }
 
     initEventListeners() {
-        // Botões de logout
         const logoutBtn = document.getElementById('logoutBtn');
         if (logoutBtn) {
             logoutBtn.addEventListener('click', (e) => {
@@ -63,7 +62,6 @@ class FuncionarioManager {
             });
         }
 
-        // Botão novo funcionário
         const novoFuncBtn = document.getElementById('novoFuncionarioBtn');
         if (novoFuncBtn) {
             novoFuncBtn.addEventListener('click', () => {
@@ -71,7 +69,6 @@ class FuncionarioManager {
             });
         }
 
-        // Busca
         const searchBtn = document.getElementById('searchBtn');
         if (searchBtn) {
             searchBtn.addEventListener('click', () => {
@@ -88,7 +85,6 @@ class FuncionarioManager {
             });
         }
 
-        // Filtro
         const filterStatus = document.getElementById('filterStatus');
         if (filterStatus) {
             filterStatus.addEventListener('change', () => {
@@ -96,7 +92,6 @@ class FuncionarioManager {
             });
         }
 
-        // Paginação
         const prevPage = document.getElementById('prevPage');
         if (prevPage) {
             prevPage.addEventListener('click', () => {
@@ -111,7 +106,6 @@ class FuncionarioManager {
             });
         }
 
-        // Modal
         const modal = document.getElementById('funcionarioModal');
         const confirmModal = document.getElementById('confirmModal');
         const closeBtns = document.querySelectorAll('.close');
@@ -139,7 +133,6 @@ class FuncionarioManager {
             });
         }
 
-        // Formulário
         const funcionarioForm = document.getElementById('funcionarioForm');
         if (funcionarioForm) {
             funcionarioForm.addEventListener('submit', (e) => {
@@ -148,7 +141,6 @@ class FuncionarioManager {
             });
         }
 
-        // Confirmação de exclusão
         const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
         if (confirmDeleteBtn) {
             confirmDeleteBtn.addEventListener('click', () => {
@@ -156,7 +148,6 @@ class FuncionarioManager {
             });
         }
 
-        // Fechar modal clicando fora
         window.addEventListener('click', (e) => {
             if (modal && e.target === modal) {
                 modal.style.display = 'none';
@@ -232,7 +223,6 @@ class FuncionarioManager {
             console.error('Erro ao carregar funcionários:', error);
             this.showAlert('Erro ao carregar funcionários: ' + error.message, 'error');
             
-            // Mostrar estado vazio
             const tbody = document.getElementById('funcionariosBody');
             if (tbody) {
                 tbody.innerHTML = `
@@ -259,7 +249,6 @@ class FuncionarioManager {
             Array.from(f.roles).some(role => role.roleStatus === 'MANAGER')
         ).length;
 
-        // Atualizar elementos somente se existirem
         const totalFuncElement = document.getElementById('totalFuncionarios');
         const totalUsersElement = document.getElementById('totalUsers');
         const basicUsersElement = document.getElementById('basicUsers');
@@ -285,7 +274,6 @@ class FuncionarioManager {
 
         let filteredFuncionarios = this.funcionarios;
 
-        // Aplicar filtro de cargo
         if (filter !== 'all') {
             filteredFuncionarios = filteredFuncionarios.filter(funcionario => {
                 return Array.from(funcionario.roles).some(role => 
@@ -294,7 +282,6 @@ class FuncionarioManager {
             });
         }
 
-        // Aplicar busca
         if (searchTerm) {
             filteredFuncionarios = filteredFuncionarios.filter(funcionario => {
                 const name = funcionario.name ? funcionario.name.toLowerCase() : '';
@@ -309,17 +296,14 @@ class FuncionarioManager {
             });
         }
 
-        // Paginação
         const totalItems = filteredFuncionarios.length;
         this.totalPages = Math.ceil(totalItems / this.itemsPerPage);
         const startIndex = (this.currentPage - 1) * this.itemsPerPage;
         const endIndex = startIndex + this.itemsPerPage;
         const paginatedFuncionarios = filteredFuncionarios.slice(startIndex, endIndex);
 
-        // Atualizar controles de paginação
         this.updatePaginationControls(totalItems);
 
-        // Renderizar tabela
         if (paginatedFuncionarios.length === 0) {
             tbody.innerHTML = `
                 <tr>
@@ -337,8 +321,6 @@ class FuncionarioManager {
             const mainRole = roles.length > 0 ? roles[0] : { roleStatus: 'BASIC' };
             const roleClass = this.getRoleBadgeClass(mainRole.roleStatus);
             const roleText = this.getRoleText(mainRole.roleStatus);
-            
-            // Escapar caracteres especiais no nome
             const escapedName = funcionario.name ? funcionario.name.replace(/'/g, "\\'") : '';
             
             return `
@@ -427,15 +409,12 @@ class FuncionarioManager {
             return;
         }
         
-        // Resetar form
         form.reset();
         this.clearErrors();
         
         if (id) {
             title.textContent = 'Editar Funcionário';
             await this.loadFuncionarioData(id);
-            
-            // Tornar senha opcional na edição
             const passwordRequired = document.getElementById('passwordRequired');
             const confirmPasswordRequired = document.getElementById('confirmPasswordRequired');
             const passwordInput = document.getElementById('password');
@@ -453,7 +432,6 @@ class FuncionarioManager {
                 statusBadge.textContent = 'ATIVO';
             }
             
-            // Senha obrigatória no cadastro
             const passwordRequired = document.getElementById('passwordRequired');
             const confirmPasswordRequired = document.getElementById('confirmPasswordRequired');
             const passwordInput = document.getElementById('password');
@@ -499,12 +477,10 @@ class FuncionarioManager {
         if (email) email.value = funcionario.email || '';
         if (phone) phone.value = funcionario.phone || '';
         
-        // Definir cargo
         const roles = Array.from(funcionario.roles);
         const mainRole = roles.length > 0 ? roles[0] : { roleStatus: 'BASIC' };
         if (role) role.value = mainRole.roleStatus;
         
-        // Status
         if (statusBadge) {
             statusBadge.textContent = 'ATIVO';
             statusBadge.className = 'badge badge-vague';
@@ -527,21 +503,18 @@ class FuncionarioManager {
         let isValid = true;
         this.clearErrors();
 
-        // Nome
         const name = document.getElementById('name')?.value.trim();
         if (!name) {
             this.showError('nameError', 'Nome é obrigatório');
             isValid = false;
         }
 
-        // Username
         const username = document.getElementById('username')?.value.trim();
         if (!username) {
             this.showError('usernameError', 'Username é obrigatório');
             isValid = false;
         }
 
-        // Email
         const email = document.getElementById('email')?.value.trim();
         if (!email) {
             this.showError('emailError', 'Email é obrigatório');
@@ -551,7 +524,6 @@ class FuncionarioManager {
             isValid = false;
         }
 
-        // Senha (apenas para novo ou se preenchida)
         const isEdit = !!this.currentEditId;
         const password = document.getElementById('password')?.value;
         const confirmPassword = document.getElementById('confirmPassword')?.value;
@@ -599,7 +571,6 @@ class FuncionarioManager {
             let response;
             
             if (isEdit) {
-                // Atualização
                 response = await this.makeAuthenticatedRequest(
                     `${this.baseUrl}/up/${this.currentEditId}`,
                     {
@@ -608,7 +579,6 @@ class FuncionarioManager {
                     }
                 );
             } else {
-                // Criação
                 const createDto = {
                     name: formData.name,
                     username: formData.username,
@@ -659,7 +629,6 @@ class FuncionarioManager {
             phone: phone || null
         };
 
-        // Adicionar senha apenas se fornecida
         if (password) {
             formData.password = password;
         }
@@ -702,7 +671,6 @@ class FuncionarioManager {
     }
 
     showAlert(message, type = 'info') {
-        // Remover alertas anteriores
         const existingAlerts = document.querySelectorAll('.custom-alert');
         existingAlerts.forEach(alert => alert.remove());
         
@@ -713,7 +681,6 @@ class FuncionarioManager {
             <span>${message}</span>
         `;
 
-        // Estilos inline para o alerta
         alert.style.cssText = `
             position: fixed;
             top: 20px;
@@ -742,7 +709,6 @@ class FuncionarioManager {
             }, 300);
         }, 5000);
         
-        // Adicionar animação CSS se não existir
         if (!document.querySelector('#alert-animations')) {
             const style = document.createElement('style');
             style.id = 'alert-animations';
@@ -761,7 +727,6 @@ class FuncionarioManager {
     }
 }
 
-// Inicializar quando o DOM estiver carregado
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM carregado, inicializando FuncionarioManager...');
     window.funcionarioManager = new FuncionarioManager();

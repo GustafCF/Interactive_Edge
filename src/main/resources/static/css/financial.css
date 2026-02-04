@@ -186,7 +186,21 @@ body {
     margin: 0;
 }
 
-/* Grid */
+.btn-calendar {
+    color: rgb(253, 191, 74) !important;
+    text-decoration: none;
+    margin-left: 1rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    transition: background-color 0.3s;
+    font-size: 0.9rem;
+    display: inline-block;
+}
+
+.btn-calendar:hover {
+    background-color: rgba(255,255,255,0.2);
+}
+
 .row {
     display: flex;
     flex-wrap: wrap;

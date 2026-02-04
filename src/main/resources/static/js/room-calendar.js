@@ -1,7 +1,8 @@
 class RoomCalendar {
     constructor() {
-        // this.API_BASE_URL = 'http://191.217.217.80:8080';
-        this.API_BASE_URL = 'http://localhost:8080';
+        // this.API_BASE_URL = 'http://177.1.73.145:8080';
+        // this.API_BASE_URL = 'http://localhost:8080';
+        this.API_BASE_URL = 'http://192.168.1.100:8080';
         this.currentDate = new Date();
         this.currentRoom = null;
         this.roomReservations = [];

@@ -45,7 +45,6 @@ class FinancialSystem {
     }
 
     initEventListeners() {
-        // Botão de logout
         const logoutBtn = document.getElementById('logoutBtn');
         if (logoutBtn) {
             logoutBtn.addEventListener('click', (e) => {
@@ -54,7 +53,6 @@ class FinancialSystem {
             });
         }
 
-        // Botões de ação
         document.getElementById('processAllBtn').addEventListener('click', () => this.processFinancialRecords());
         document.getElementById('processAdvancedBtn').addEventListener('click', () => this.processAdvanced());
         document.getElementById('refreshDataBtn').addEventListener('click', () => this.loadDashboardData());
@@ -728,7 +726,6 @@ class FinancialSystem {
     }
 
     showTab(tabName) {
-        // Remover classe active de todas as tabs e conteúdos
         document.querySelectorAll('.tab-content').forEach(tab => {
             tab.classList.remove('active');
         });
@@ -736,11 +733,9 @@ class FinancialSystem {
             tab.classList.remove('active');
         });
 
-        // Adicionar classe active à tab selecionada
         document.getElementById(`tab-${tabName}`).classList.add('active');
         document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
 
-        // Carregar dados da tab se necessário
         if (tabName === 'daily') {
             this.loadDailyRecords();
         } else if (tabName === 'monthly') {
