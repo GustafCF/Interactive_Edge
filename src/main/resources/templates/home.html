@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Softwise | Interactive Edge - Sistema para Hostels</title>
+    <link rel="icon" th:href="@{/images/image-favicon.jpg}" type="image/png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" th:href="@{/css/home.css}">
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1 class="logo">Interactive Edge</h1>
+            <nav class="nav">
+                <a href="#hero" class="nav-link">Início</a>
+                <a href="#features" class="nav-link">Funcionalidades</a>
+                <!-- <a href="#about" class="nav-link">Planos</a> -->
+                <a href="#contact" class="nav-link">Contato</a>
+                <a th:href="@{/login}" class="nav-link btn-login"><i class="fas fa-sign-in-alt"></i> Login</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main">
+        <!-- Hero Section -->
+        <section id="hero" class="hero">
+            <div class="container">
+                <h1>Softwise</h1>
+                <p>Conheça o <strong>Interactive Edge</strong>, o sistema completo para gestão de hospedagens, com integração direta com Airbnb.</p>
+                <a href="#features" class="btn">Descubra mais</a>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section id="features" class="section">
+            <div class="container">
+                <h2 class="section-title">Funcionalidades poderosas</h2>
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <i class="fas fa-calendar-check"></i>
+                        <h3>Reservas centralizadas</h3>
+                        <p>Gerencie todas as reservas em um só lugar, com calendário interativo e atualização em tempo real.</p>
+                    </div>
+                    <div class="feature-card">
+                        <i class="fas fa-users"></i>
+                        <h3>Registro de hóspedes</h3>
+                        <p>Cadastro completo de hóspedes, check-in/check-out rápido e digital.</p>
+                    </div>
+                    <div class="feature-card">
+                        <i class="fas fa-bed"></i>
+                        <h3>Controle de quartos</h3>
+                        <p>Visualize a ocupação, mantenha informações de preços, capacidades e status de cada quarto.</p>
+                    </div>
+                    <div class="feature-card">
+                        <i class="fas fa-exchange-alt"></i>
+                        <h3>Integração com OTAs</h3>
+                        <p>Sincronize automaticamente com Airbnb – evite overbooking e mantenha disponibilidade em tempo real.</p>
+                    </div>
+                    <div class="feature-card">
+                        <i class="fas fa-chart-line"></i>
+                        <h3>Registro de Funcionários</h3>
+                        <p>Acompanhe funcionários e delegue suas funções.</p>
+                    </div>
+                    <div class="feature-card">
+                        <i class="fas fa-mobile-alt"></i>
+                        <h3>Multi‑plataforma</h3>
+                        <p>Acesse de qualquer dispositivo, com design responsivo e pronto para uso em computadores, tablets e celulares.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- About Softwise -->
+        <section id="about" class="section">
+            <div class="container">
+                <!-- <h2 class="section-title">Planos</h2>
+                <div class="about">
+                    <p><strong>O Interacctive Edge tem planos que cabem no seu bolso:</strong></p>
+                    <p><strong>Plano Básico: Custa $99,90,</strong> e disponibiliza até 6 quartos. Assinatura Anual: $999.90</p>
+                    <p><strong>Plano Profissional: Custa 169,90,</strong> e disponibilza até 20 quartos. Assinatura Anual: 1699,90</p>
+                </div> -->
+            </div>
+        </section>
+
+        <!-- Contact Section -->
+        <section id="contact" class="section">
+            <div class="container">
+                <h2 class="section-title">Entre em contato</h2>
+                <div class="contact-info">
+                    <div class="contact-item">
+                        <i class="fas fa-envelope"></i>
+                        <h4>E-mail</h4>
+                        <p>softwise.system.of@gmail.com</p>
+                    </div>
+                    <div class="contact-item">
+                        <i class="fas fa-phone-alt"></i>
+                        <h4>Instagram</h4>
+                        <p>https://www.instagram.com/softwise.off</p>
+                    </div>
+                    <div class="contact-item">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <h4>Localização</h4>
+                        <p>Distrito Federal - DF, Brasil</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p><strong>&copy;Softwise</strong></p>
+        </div>
+    </footer>
+
+    <script th:src="@{/js/home.js}"></script>
+</body>
+</html>

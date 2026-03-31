@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciar Quartos</title>
+    <link rel="icon" th:href="@{/images/image-favicon.jpg}" type="image/png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" th:href="@{/css/room.css}">
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1 class="logo">Interactive Edge</h1>
+            <nav class="nav">
+                <a href="/" class="nav-link"><i class="fas fa-home"></i> Dashboard</a>
+                <a href="/guest" class="nav-link"><i class="fas fa-users"></i> Hóspedes</a>
+                <div class="dropdown">
+                    <a class="nav-link dropdown-link"><i class="fas fa-cog"></i> Gerenciar</a>
+                    <div class="dropdown-content">
+                        <a href="/reserve"><i class="fas fa-calendar-check"></i> Reservas</a>
+                        <a th:href="@{/funcionarios}"><i class="fas fa-user-tie"></i> Funcionários</a>
+                    </div>
+                </div>
+                <a href="/calendario" class="btn-calendar">
+                    <i class="fas fa-calendar"></i> Calendário
+                </a>
+                <div class="user-info" id="userInfo">
+                </div>
+                <a href="#" class="nav-link" id="logoutBtn">Sair</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <div id="alertContainer"></div>
+
+            <div class="stats-grid" id="statsContainer">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalRooms">0</div>
+                    <div class="stat-label">Total de Quartos</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="availableRooms">0</div>
+                    <div class="stat-label">Quartos Disponíveis</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="occupiedRooms">0</div>
+                    <div class="stat-label">Quartos Ocupados</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="sharedRooms">0</div>
+                    <div class="stat-label">Quartos Compartilhados</div>
+                </div>
+            </div>
+
+            <div class="page-header">
+                <h1>Gerenciar Quartos</h1>
+                <button class="btn btn-primary" id="addRoomBtn">
+                    + Adicionar Quarto
+                </button>
+            </div>
+
+           <div class="quick-actions">
+                <button class="btn btn-success" id="refreshBtn">
+                    <i class="fas fa-sync-alt"></i> Atualizar Lista
+                </button>
+                <button class="btn btn-primary" id="filterAvailableBtn">
+                    <i class="fas fa-check-circle"></i> Filtrar Disponíveis
+                </button>
+                <button class="btn btn-primary" id="filterOccupiedBtn">
+                    <i class="fas fa-ban"></i> Filtrar Ocupados
+                </button>
+                <button class="btn btn-primary" id="showAllBtn">
+                    <i class="fas fa-eye"></i> Mostrar Todos
+                </button>
+                <button class="btn btn-primary" id="sortRoomsBtn">
+                    <i class="fas fa-sort-alpha-down"></i> Ordenar
+                </button>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Lista de Quartos</h2>
+                    <div class="loading" id="tableLoading" style="display: none;"></div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table" id="roomsTable">
+                        <thead>
+                            <tr>
+                                <th>Número</th>
+                                <th>Status</th>
+                                <th>Tipo</th>
+                                <th>Preço</th>
+                                <th>Camas</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="roomsTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal para Adicionar/Editar Quarto -->
+    <div id="roomModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle">Adicionar Quarto</h3>
+                <span class="close">&times;</span>
+            </div>
+            <form id="roomForm">
+                <input type="hidden" id="roomId">
+                <div class="form-group">
+                    <label for="roomNumber" class="form-label">Número do Quarto</label>
+                    <input type="number" class="form-control" id="roomNumber" required min="1">
+                </div>
+                <div class="form-group">
+                    <label for="roomType" class="form-label">Tipo de Quarto</label>
+                    <select class="form-control" id="roomType" required>
+                        <option value="">Selecione o tipo</option>
+                        <option value="SHARED">Compartilhado</option>
+                        <option value="EXCLUSIVE">Exclusivo</option>
+                        <option value="SUITE">Suíte</option>
+                        <option value="STUDIO">Studio</option>
+                        <option value="ROOM_SHARED_BATHROOM">Quarto com Banheiro Compartilhado</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="roomPrice" class="form-label">Preço (R$)</label>
+                    <input type="number" class="form-control" id="roomPrice" required min="0" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label for="roomStatus" class="form-label">Status</label>
+                    <select class="form-control" id="roomStatus" required>
+                        <option value="">Selecione o status</option>
+                        <option value="VAGUE">Disponível</option>
+                        <option value="OCCUPIED">Ocupado</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn btn-primary btn-sm" id="submitBtn">
+                        Salvar
+                    </button>
+                    <button type="button" class="btn btn-danger btn-sm" id="cancelBtn">
+                        Cancelar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para Gerenciar Camas -->
+    <div id="bedModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Gerenciar Camas - Quarto <span id="bedRoomNumber"></span></h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="form-group">
+                <h4>Camas do Quarto:</h4>
+                <div class="beds-container" id="bedsList">
+                    <!-- Lista de camas será carregada aqui -->
+                </div>
+                <div class="bed-actions">
+                    <button class="btn btn-success btn-sm" id="addBedBtn">
+                        + Adicionar Cama
+                    </button>
+                    <button class="btn btn-danger btn-sm" id="removeBedBtn">
+                        - Remover Cama
+                    </button>
+                </div>
+            </div>
+            <div class="form-group">
+                <button type="button" class="btn btn-primary btn-sm" id="closeBedModalBtn">
+                    Fechar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Confirmação -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Confirmar Exclusão</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="form-group">
+                <p>Tem certeza que deseja excluir o quarto <strong id="confirmRoomNumber"></strong>?</p>
+                <button class="btn btn-danger" id="confirmDeleteBtn">Excluir</button>
+                <button class="btn btn-primary" id="cancelDeleteBtn">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="container">
+            <p><strong>&copy; Interactive Edge System</strong></p>
+        </div>
+    </footer>
+    <script th:src="@{/js/room.js}"></script>
+</body>
+</html>

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Interactive Edge</title>
+    <link rel="icon" th:href="@{/images/image-favicon.jpg}" type="image/png">
+    <link rel="stylesheet" th:href="@{/css/login.css}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script th:src="@{/js/login.js}" defer></script>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1 class="logo">Interactive Edge</h1>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <div class="login-container">
+                <div class="login-card">
+                    <div class="login-header">
+                        <h2 class="login-title">
+                            <i class="fas fa-lock"></i> Acesso ao Sistema
+                        </h2>
+                        <p class="login-subtitle">Entre com suas credenciais para acessar o sistema</p>
+                    </div>
+                    
+                    <div id="alertContainer" class="alert-container"></div>
+                    
+                    <form id="loginForm" novalidate>
+                        <div class="form-group">
+                            <label for="email" class="form-label">
+                                <i class="fas fa-envelope"></i> E-mail
+                            </label>
+                            <input 
+                                type="email" 
+                                id="email" 
+                                name="email" 
+                                class="form-control" 
+                                placeholder="seu@email.com"
+                                required
+                                autocomplete="username"
+                            >
+                            <div class="error-message" id="emailError"></div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="password" class="form-label">
+                                <i class="fas fa-key"></i> Senha
+                            </label>
+                            <div class="password-container">
+                                <input 
+                                    type="password" 
+                                    id="password" 
+                                    name="password" 
+                                    class="form-control" 
+                                    placeholder="Sua senha"
+                                    required
+                                    autocomplete="current-password"
+                                >
+                                <button type="button" id="togglePassword" class="password-toggle">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <div class="error-message" id="passwordError"></div>
+                        </div>
+                        
+                        <button type="submit" id="loginBtn" class="btn btn-primary btn-login">
+                            <span class="btn-text">Entrar</span>
+                            <div class="loading-spinner"></div>
+                        </button>
+                    </form>
+                    
+                    <div class="links-container">
+                        <a id="forgotPasswordLink">Esqueceu sua senha?</a>
+                        <a id="registerLink">Criar conta</a>
+                        <!-- <a id="resetPasswordLink" style="margin-left: 10px;">Redefinir senha (com token)</a> -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+   
+
+    <!-- Modal de Registro -->
+    <div id="registerModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" id="closeRegisterModal">&times;</span>
+            <div class="modal-header">
+                <h3><i class="fas fa-user-plus"></i> Criar Conta</h3>
+            </div>
+            <form id="registerForm">
+                <div class="form-group">
+                    <label for="regName" class="form-label">Nome completo</label>
+                    <input type="text" id="regName" class="form-control" placeholder="Seu nome" required>
+                    <div class="error-message" id="regNameError"></div>
+                </div>
+                <div class="form-group">
+                    <label for="regEmail" class="form-label">E-mail</label>
+                    <input type="email" id="regEmail" class="form-control" placeholder="seu@email.com" required>
+                    <div class="error-message" id="regEmailError"></div>
+                </div>
+                <div class="form-group">
+                    <label for="regPassword" class="form-label">Senha</label>
+                    <input type="password" id="regPassword" class="form-control" placeholder="Mínimo 6 caracteres" required>
+                    <div class="error-message" id="regPasswordError"></div>
+                </div>
+                <div class="form-group">
+                    <label for="regPhone" class="form-label">Telefone (opcional)</label>
+                    <input type="tel" id="regPhone" class="form-control" placeholder="(11) 99999-9999">
+                    <div class="error-message" id="regPhoneError"></div>
+                </div>
+                <div class="form-footer">
+                    <button type="button" class="btn btn-secondary" id="cancelRegister">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="registerSubmitBtn">Registrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal de Esqueci a Senha (envio de e-mail) -->
+    <div id="forgotPasswordModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" id="closeForgotModal">&times;</span>
+            <div class="modal-header">
+                <h3><i class="fas fa-key"></i> Recuperar Senha</h3>
+            </div>
+            <form id="forgotPasswordForm">
+                <p>Informe seu e-mail cadastrado para receber um link de recuperação.</p>
+                <div class="form-group">
+                    <label for="forgotEmail" class="form-label">E-mail</label>
+                    <input type="email" id="forgotEmail" class="form-control" placeholder="seu@email.com" required>
+                    <div class="error-message" id="forgotEmailError"></div>
+                </div>
+                <div class="form-footer">
+                    <button type="button" class="btn btn-secondary" id="cancelForgot">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="forgotSubmitBtn">Enviar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal de Redefinir Senha (com token) -->
+    <div id="resetPasswordModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" id="closeResetModal">&times;</span>
+            <div class="modal-header">
+                <h3><i class="fas fa-redo-alt"></i> Redefinir Senha</h3>
+            </div>
+            <form id="resetPasswordForm">
+                <p>Digite o token recebido por e-mail e sua nova senha.</p>
+                <div class="form-group">
+                    <label for="resetToken" class="form-label">Token</label>
+                    <input type="text" id="resetToken" class="form-control" placeholder="Token recebido" required>
+                    <div class="error-message" id="resetTokenError"></div>
+                </div>
+                <div class="form-group">
+                    <label for="newPassword" class="form-label">Nova Senha</label>
+                    <input type="password" id="newPassword" class="form-control" placeholder="Nova senha" required>
+                    <div class="error-message" id="newPasswordError"></div>
+                </div>
+                <div class="form-footer">
+                    <button type="button" class="btn btn-secondary" id="cancelReset">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="resetSubmitBtn">Redefinir</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+     <footer class="footer">
+        <div class="container">
+            <p><strong>&copy; Interactive Edge System</strong></p>
+        </div>
+    </footer>
+</body>
+</html>

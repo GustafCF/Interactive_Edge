@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciar Hóspedes</title>
+    <link rel="icon" th:href="@{/images/image-favicon.jpg}" type="image/png">
+    <link rel="stylesheet" th:href="@{/css/guest.css}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script th:src="@{/js/guest.js}" defer></script>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1 class="logo">Interactive Edge</h1>
+            <nav class="nav">
+                <a th:href="@{/}" class="nav-link"><i class="fas fa-home"></i> Dashboard</a>
+                <a th:href="@{/room}" class="nav-link"><i class="fas fa-bed"></i> Quartos</a>
+                <div class="dropdown">
+                    <a class="nav-link dropdown-link"><i class="fas fa-cog"></i> Gerenciar</a>
+                    <div class="dropdown-content">
+                        <a th:href="@{/reserve}"><i class="fas fa-calendar-check"></i> Reservas</a>
+                        <a th:href="@{/funcionarios}"><i class="fas fa-user-tie"></i> Funcionários</a>
+                    </div>
+                </div>
+                <div class="user-info" id="userInfo">
+                    <!-- Informações do usuário serão carregadas aqui -->
+                </div>
+                <a href="#" class="nav-link" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Sair</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <div class="card">
+                <div class="page-header">
+                    <div>
+                        <h2 class="card-title">Gerenciar Hóspedes</h2>
+                        <p>Cadastre e gerencie hóspedes do Interactive Edge</p>
+                    </div>
+                    <div class="quick-actions">
+                        <a href="/calendario" class="btn btn-calendar">
+                            <i class="fas fa-calendar"></i> Ver Calendário
+                        </a>
+                        <a href="/reserve" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Gerenciar Reservas
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Formulário de Cadastro de Hóspede -->
+            <div class="card">
+                <h3 class="card-title" id="formTitle">Cadastrar Novo Hóspede</h3>
+                <div class="guest-form">
+                    <div class="form-group">
+                        <label class="form-label">Nome Completo *</label>
+                        <input type="text" id="guestName" class="form-control" placeholder="Digite o nome do hóspede">
+                        <div class="error-message" id="nameError"></div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">RG/CPF</label>
+                        <input type="text" id="guestRg" class="form-control" placeholder="Digite o RG">
+                        <div class="error-message" id="rgError"></div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Telefone</label>
+                        <input type="text" id="guestPhone" class="form-control" placeholder="Digite o telefone">
+                        <div class="error-message" id="phoneError"></div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" id="guestEmail" class="form-control" placeholder="Digite o email">
+                        <div class="error-message" id="emailError"></div>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button id="saveGuestBtn" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Salvar Hóspede
+                    </button>
+                    <button id="cancelEditBtn" class="btn btn-secondary" style="display: none;">
+                        <i class="fas fa-times"></i> Cancelar Edição
+                    </button>
+                </div>
+            </div>
+
+            <!-- Busca de Hóspedes -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Buscar Hóspedes</h3>
+                </div>
+                <div class="form-group">
+                    <input type="text" id="searchInput" class="form-control" 
+                           placeholder="Digite o nome, RG ou telefone do hóspede...">
+                </div>
+                <div id="searchResults"></div>
+            </div>
+
+            <!-- Lista de Hóspedes -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Lista de Hóspedes</h3>
+                    <div>
+                        <button id="refreshGuestsBtn" class="btn btn-sm btn-success">
+                            <i class="fas fa-sync-alt"></i> Atualizar
+                        </button>
+                    </div>
+                </div>
+                <div id="guestList" class="table-container">
+                    <p class="loading-text">Carregando hóspedes...</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal de Confirmação -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content small-modal">
+            <div class="modal-header">
+                <h3>Confirmar Exclusão</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir o hóspede <strong id="deleteGuestName"></strong>?</p>
+                <p class="warning-text">Esta ação não pode ser desfeita!</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="cancelDeleteBtn">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Excluir</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="container">
+            <p><strong>&copy; Interactive Edge System</strong></p>
+        </div>
+    </footer>
+</body>
+</html>

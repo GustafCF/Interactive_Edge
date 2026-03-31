@@ -1,0 +1,28 @@
+Baixar o APP link: https://github.com/GustafCF/Interactive_Edge 
+
+
+Baixar Maven e Java no Winodws
+
+Download Java link: https://www.azul.com/core-post-download/?endpoint=zulu&uuid=64935dc6-baf8-47f6-83a5-f0f42537584a
+
+Download Maven link: https://dlcdn.apache.org/maven/maven-3/3.9.14/binaries/apache-maven-3.9.14-bin.zip
+
+Config java:
+
+maven - c:\MAVEN\apache-maven-3.9.14
+java - c\Java\zulu21.48.17-ca-jre21.0.10-win_x64
+
+Win + R
+sysdm.cpl
+
+Avançado -> Variáveis de Ambiente -> Variáveis do Sistema -> NOVO
+MAVEN_HOME - c:\MAVEN\apache-maven-3.9.14
+JAVA_HOME - c\Java\zulu21.48.17-ca-jre21.0.10-win_x64
+
+Path -> Editar -> Novo
+%JAVA_HOME%\bin
+%MAVEN_HOME%\bin
+
+salvar
+
+

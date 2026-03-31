@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendário do Quarto</title>
+    <link rel="icon" th:href="@{/images/image-favicon.jpg}" type="image/png">
+    <link rel="stylesheet" th:href="@{/css/room-calendar.css}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script th:src="@{/js/room-calendar.js}" defer></script>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1 class="logo">Interactive Edge</h1>
+            <nav class="nav">
+                <a href="/" class="nav-link"><i class="fas fa-home"></i> Dashboard</a>
+                <a href="/guest" class="nav-link"><i class="fas fa-users"></i> Hóspedes</a>
+                <a href="/room" class="nav-link"><i class="fas fa-bed"></i> Quartos</a>
+                <div class="dropdown">
+                    <a class="nav-link dropdown-link"><i class="fas fa-cog"></i> Gerenciar</a>
+                    <div class="dropdown-content">
+                        <a href="/reserve"><i class="fas fa-calendar-check"></i> Reservas</a>
+                    </div>
+                </div>
+                <a href="/calendario" class="nav-link active"><i class="fas fa-calendar-alt"></i> Calendário</a>
+                <div class="user-info" id="userInfo">
+                </div>
+                <a href="#" class="nav-link" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Sair</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <div id="alertContainer" class="alert-container"></div>
+
+            <div class="calendar-header">
+                <div class="room-info">
+                    <div class="room-number" id="roomNumberDisplay">
+                        <i class="fas fa-door-closed"></i> Quarto 
+                    </div>
+                    <div class="room-type" id="roomTypeDisplay">
+                        <i class="fas fa-spinner fa-spin loading-indicator"></i> Carregando...
+                    </div>
+                </div>
+                <div class="calendar-nav">
+                    <button class="btn btn-secondary btn-sm" id="prevMonthBtn">
+                        <i class="fas fa-chevron-left"></i> Mês Anterior
+                    </button>
+                    <h2 class="calendar-title" id="currentMonthDisplay">
+                        <i class="fas fa-calendar"></i> 
+                    </h2>
+                    <button class="btn btn-secondary btn-sm" id="nextMonthBtn">
+                        Próximo Mês <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-primary" id="newReservationBtn">
+                        <i class="fas fa-plus"></i> Nova Reserva
+                    </button>
+                    <button class="btn btn-secondary" id="backToRoomsBtn">
+                        <i class="fas fa-arrow-left"></i> Voltar para Quartos
+                    </button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title"><i class="fas fa-calendar-day"></i> Calendário de Reservas</h2>
+                    <div class="loading" id="calendarLoading">
+                        <div class="loading-spinner"></div>
+                    </div>
+                </div>
+                <div class="calendar-grid" id="calendarGrid">
+                    <div class="calendar-day-header">Dom</div>
+                    <div class="calendar-day-header">Seg</div>
+                    <div class="calendar-day-header">Ter</div>
+                    <div class="calendar-day-header">Qua</div>
+                    <div class="calendar-day-header">Qui</div>
+                    <div class="calendar-day-header">Sex</div>
+                    <div class="calendar-day-header">Sáb</div>
+                </div>
+            </div>
+            <div class="card-spacing"></div>
+
+            <div class="card" id="reservationForm" style="display: none;">
+                <div class="card-header">
+                    <h2 class="card-title"><i class="fas fa-plus-circle"></i> Nova Reserva</h2>
+                </div>
+                <form id="reserveForm">
+                    <div class="form-group">
+                        <label class="form-label"><i class="fas fa-calendar-check"></i> Datas Selecionadas</label>
+                        <div id="selectedDates" class="selected-dates">
+                            <p class="no-dates">Nenhuma data selecionada</p>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="guestName" class="form-label"><i class="fas fa-user"></i> Nome do Hóspede</label>
+                        <input 
+                            type="text" 
+                            id="guestName" 
+                            name="guestName" 
+                            class="form-control" 
+                            placeholder="Digite o nome do hóspede"
+                            autocomplete="off"
+                            required
+                        >
+                        <div id="guestAutocomplete" class="autocomplete-dropdown"></div>
+                        <div class="error-message" id="guestNameError"></div>
+                        <div class="hint-text">
+                            <small><i class="fas fa-info-circle"></i> Digite pelo menos 2 letras para ver sugestões</small>
+                        </div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" id="reserveBtn" class="btn btn-primary">
+                            <span class="btn-text">Reservar</span>
+                            <div class="loading-spinner"></div>
+                        </button>
+                        <button type="button" id="cancelReservationBtn" class="btn btn-danger">
+                            <i class="fas fa-times"></i> Cancelar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <div id="manageModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-cog"></i> Gerenciar Reserva</h3>
+                <span class="close" id="closeManageModal">&times;</span>
+            </div>
+            <div class="management-card">
+                <div id="manageReservationContent">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="reservationDetailsModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-info-circle"></i> Detalhes da Reserva</h3>
+                <span class="close" id="closeDetailsModal">&times;</span>
+            </div>
+            <div class="modal-body" id="reservationDetailsContent">
+            </div>
+        </div>
+    </div>
+
+    <div id="cancelReservationModal" class="modal">
+        <div class="modal-content small-modal">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-exclamation-triangle"></i> Confirmar Cancelamento</h3>
+                <span class="close" id="closeCancelModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p id="cancelReservationMessage"></p>
+                <div class="warning-box">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <span>Esta ação não pode ser desfeita!</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="cancelCancelBtn">
+                    <i class="fas fa-times"></i> Voltar
+                </button>
+                    <button type="button" class="btn btn-danger" id="confirmCancelBtn">
+                    <i class="fas fa-trash"></i> Confirmar Cancelamento
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para criar novo hóspede -->
+    <div id="createGuestModal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-user-plus"></i> Criar Novo Hóspede</h3>
+                <span class="close" id="closeCreateGuestModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="createGuestForm">
+                    <div class="form-group">
+                        <label for="newGuestName" class="form-label">Nome Completo *</label>
+                        <input type="text" id="newGuestName" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="newGuestRg" class="form-label">RG *</label>
+                        <input type="text" id="newGuestRg" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="newGuestPhone" class="form-label">Telefone</label>
+                        <input type="tel" id="newGuestPhone" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="newGuestEmail" class="form-label">Email</label>
+                        <input type="email" id="newGuestEmail" class="form-control">
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" id="cancelCreateGuestBtn">
+                            <i class="fas fa-times"></i> Cancelar
+                        </button>
+                        <button type="submit" class="btn btn-primary" id="submitCreateGuestBtn">
+                            <i class="fas fa-save"></i> Salvar Hóspede
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="container">
+            <p><strong>&copy; Interactive Edge System</strong></p>
+        </div>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,97 @@
+package com.br.elohostel.repository;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Set;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import com.br.elohostel.model.Bed;
+import com.br.elohostel.model.Room;
+import com.br.elohostel.model.enums.BedStatus;
+
+@Repository
+public interface BedRepository extends JpaRepository<Bed, Long> {
+
+    List<Bed> findByRoomIdAndTenant_TenantKey(Long roomId, String tenantKey);
+
+    List<Bed> findByBedStatusAndRoomIdAndTenant_TenantKey(BedStatus bedStatus, Long roomId, String tenantKey);
+
+    @Query("SELECT b FROM Bed b WHERE b.room.id = :roomId " +
+           "AND b.tenant.tenantKey = :tenantKey " +
+           "AND b.bedStatus = com.br.elohostel.model.enums.BedStatus.VAGUE " +
+           "AND NOT EXISTS (" +
+           "   SELECT bo FROM BedOccupation bo WHERE bo.bed = b " +
+           "   AND EXISTS (SELECT 1 FROM bo.occupiedDays od WHERE od IN :dates)" +
+           ")")
+    List<Bed> findAvailableBedsInRoom(@Param("roomId") Long roomId, 
+                                     @Param("dates") Set<LocalDate> dates,
+                                     @Param("tenantKey") String tenantKey);
+
+    @Query("SELECT b FROM Bed b WHERE b.room.id = :roomId " +
+           "AND b.tenant.tenantKey = :tenantKey " +
+           "AND b.bedStatus = :bedStatus " +
+           "AND NOT EXISTS (" +
+           "   SELECT bo FROM BedOccupation bo WHERE bo.bed = b " +
+           "   AND EXISTS (SELECT 1 FROM bo.occupiedDays od WHERE od IN :dates)" +
+           ")")
+    List<Bed> findBedsInRoomByStatus(@Param("roomId") Long roomId, 
+                                   @Param("bedStatus") BedStatus bedStatus,
+                                   @Param("dates") Set<LocalDate> dates,
+                                   @Param("tenantKey") String tenantKey);
+
+    @Query("SELECT b FROM Bed b WHERE b.room.id = :roomId " +
+           "AND b.tenant.tenantKey = :tenantKey " +
+           "AND NOT EXISTS (" +
+           "   SELECT bo FROM BedOccupation bo WHERE bo.bed = b " +
+           "   AND EXISTS (SELECT 1 FROM bo.occupiedDays od WHERE od IN :dates)" +
+           ")")
+    List<Bed> findUnoccupiedBedsInRoom(@Param("roomId") Long roomId, 
+                                      @Param("dates") Set<LocalDate> dates,
+                                      @Param("tenantKey") String tenantKey);
+    
+    List<Bed> findByRoomAndTenant_TenantKey(Room room, String tenantKey);
+    
+    List<Bed> findByRoomAndBedStatusAndTenant_TenantKey(Room room, BedStatus bedStatus, String tenantKey);
+    
+    List<Bed> findByBedStatusAndTenant_TenantKey(BedStatus bedStatus, String tenantKey);
+    
+    @Query("SELECT COUNT(b) FROM Bed b WHERE b.room.id = :roomId AND b.bedStatus = :status AND b.tenant.tenantKey = :tenantKey")
+    Long countByRoomAndStatus(@Param("roomId") Long roomId, @Param("status") BedStatus status, @Param("tenantKey") String tenantKey);
+
+    @Query("SELECT b FROM Bed b WHERE b.room.id = :roomId " +
+           "AND b.tenant.tenantKey = :tenantKey " +
+           "AND b.bedStatus = com.br.elohostel.model.enums.BedStatus.VAGUE " +
+           "AND NOT EXISTS (" +
+           "   SELECT bo FROM BedOccupation bo WHERE bo.bed = b " +
+           "   AND EXISTS (SELECT 1 FROM bo.occupiedDays od WHERE od IN :dates)" +
+           ")")
+    List<Bed> findAvailableAndUnoccupiedBeds(@Param("roomId") Long roomId, 
+                                           @Param("dates") Set<LocalDate> dates,
+                                           @Param("tenantKey") String tenantKey);
+
+    @Query("SELECT COUNT(b) FROM Bed b WHERE b.room.id = :roomId " +
+           "AND b.tenant.tenantKey = :tenantKey " +
+           "AND b.bedStatus = com.br.elohostel.model.enums.BedStatus.VAGUE " +
+           "AND NOT EXISTS (" +
+           "   SELECT bo FROM BedOccupation bo WHERE bo.bed = b " +
+           "   AND EXISTS (SELECT 1 FROM bo.occupiedDays od WHERE od IN :dates)" +
+           ")")
+    Long countAvailableBedsInRoom(@Param("roomId") Long roomId, 
+                                @Param("dates") Set<LocalDate> dates,
+                                @Param("tenantKey") String tenantKey);
+
+    @Query("SELECT COUNT(b) > 0 FROM Bed b WHERE b.id = :bedId " +
+           "AND b.tenant.tenantKey = :tenantKey " +
+           "AND b.bedStatus = com.br.elohostel.model.enums.BedStatus.VAGUE " +
+           "AND NOT EXISTS (" +
+           "   SELECT bo FROM BedOccupation bo WHERE bo.bed.id = :bedId " +
+           "   AND EXISTS (SELECT 1 FROM bo.occupiedDays od WHERE od IN :dates)" +
+           ")")
+    boolean isBedAvailable(@Param("bedId") Long bedId, 
+                         @Param("dates") Set<LocalDate> dates,
+                         @Param("tenantKey") String tenantKey);
+}
