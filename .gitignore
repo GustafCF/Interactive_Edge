@@ -33,8 +33,3 @@ build/
 
 ### VS Code ###
 .vscode/
-
-### uploads ###
-/uploads/
-/temp/
-/document/
