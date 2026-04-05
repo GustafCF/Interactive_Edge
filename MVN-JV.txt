@@ -10,19 +10,25 @@ Download Maven link: https://dlcdn.apache.org/maven/maven-3/3.9.14/binaries/apac
 Config java:
 
 maven - c:\MAVEN\apache-maven-3.9.14
-java - c\Java\zulu21.48.17-ca-jre21.0.10-win_x64
+java - c:\Java\zulu21.48.17-ca-jre21.0.10-win_x64
 
 Win + R
 sysdm.cpl
 
 Avançado -> Variáveis de Ambiente -> Variáveis do Sistema -> NOVO
 MAVEN_HOME - c:\MAVEN\apache-maven-3.9.14
-JAVA_HOME - c\Java\zulu21.48.17-ca-jre21.0.10-win_x64
+JAVA_HOME - c:\Java\zulu21.48.17-ca-jre21.0.10-win_x64
 
 Path -> Editar -> Novo
 %JAVA_HOME%\bin
 %MAVEN_HOME%\bin
 
 salvar
+
+Google:
+
+url:
+
+localhost:8080/home
 
 
