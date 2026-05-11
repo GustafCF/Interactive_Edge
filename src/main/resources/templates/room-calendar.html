@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calendário do Quarto</title>
+    <title>Calendário do Quarto - Elohostel</title>
     <link rel="icon" th:href="@{/images/image-favicon.jpg}" type="image/png">
     <link rel="stylesheet" th:href="@{/css/room-calendar.css}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -12,7 +12,10 @@
 <body>
     <header class="header">
         <div class="container">
-            <h1 class="logo">Interactive Edge</h1>
+            <div class="logo-container">
+                <img th:src="@{/images/logo-header1.png}" alt="Interactive Edge Logo" class="logo-image">
+                <h1 class="logo">Interactive Edge</h1>
+            </div>
             <nav class="nav">
                 <a href="/" class="nav-link"><i class="fas fa-home"></i> Dashboard</a>
                 <a href="/guest" class="nav-link"><i class="fas fa-users"></i> Hóspedes</a>
@@ -125,6 +128,128 @@
                     </div>
                 </form>
             </div>
+
+            <!-- AIRBNB CONNECTION CARD - VERSÃO SIMPLIFICADA -->
+            <div class="card" id="airbnbConnectionCard">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <i class="fab fa-airbnb"></i> Integração Airbnb
+                    </h2>
+                    <button class="btn btn-info btn-sm" id="toggleAirbnbPanelBtn">
+                        <i class="fas fa-plug"></i> Conectar Airbnb
+                    </button>
+                </div>
+                
+                <div id="airbnbPanel" style="display: none;">
+                    <!-- Status da Conexão -->
+                    <div id="airbnbConnectionStatus" class="connection-status">
+                        <div class="status-indicator" id="connectionStatusDot"></div>
+                        <span id="connectionStatusText">Não conectado</span>
+                    </div>
+
+                    <!-- Formulário de Conexão Simplificado -->
+                    <form id="airbnbConnectionForm" class="airbnb-form">
+                        <div class="form-group">
+                            <label class="form-label">
+                                <i class="fab fa-airbnb"></i> URL iCal do Airbnb
+                            </label>
+                            <input type="url" id="airbnbIcalUrl" class="form-control" 
+                                   placeholder="https://www.airbnb.com/calendar/ical/xxxx.ics"
+                                   required>
+                            <small class="form-text text-muted">
+                                📋 Como obter: No Airbnb, vá em "Anúncios" → Selecione seu anúncio → 
+                                "Calendário" → "Configurações de disponibilidade" → "Exportar calendário" → 
+                                Copie a URL iCal
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">
+                                <i class="fas fa-building"></i> Nome da Propriedade
+                            </label>
+                            <input type="text" id="airbnbPropertyName" class="form-control" 
+                                   placeholder="ex: Apartamento Centro">
+                            <small class="form-text text-muted">
+                                💡 Nome que aparecerá para identificar este quarto no Airbnb
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">
+                                <i class="fas fa-calendar-alt"></i> Nome do Calendário
+                            </label>
+                            <input type="text" id="airbnbCalendarName" class="form-control" 
+                                   placeholder="ex: Calendário Elohostel" 
+                                   value="Calendário Elohostel">
+                            <small class="form-text text-muted">
+                                📅 Nome do calendário que aparecerá no Airbnb
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="syncOnSetup" checked>
+                                <label for="syncOnSetup">
+                                    <i class="fas fa-sync-alt"></i> Sincronizar reservas imediatamente
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary" id="connectAirbnbBtn">
+                                <i class="fab fa-airbnb"></i> Conectar Quarto ao Airbnb
+                            </button>
+                            <button type="button" class="btn btn-danger" id="disconnectAirbnbBtn" style="display: none;">
+                                <i class="fas fa-trash-alt"></i> Desconectar
+                            </button>
+                        </div>
+                    </form>
+
+                    <div id="activeConnectionInfo" class="active-connection" style="display: none;">
+                        <div class="connection-details">
+                            <h4><i class="fas fa-link"></i> Conexão Ativa</h4>
+                            <div class="detail-item">
+                                <strong>Quarto:</strong> <span id="connRoomNumber"></span>
+                            </div>
+                            <div class="detail-item">
+                                <strong>Propriedade:</strong> <span id="connPropertyName"></span>
+                            </div>
+                            <div class="detail-item">
+                                <strong>Última Sincronização:</strong> <span id="connLastSync"></span>
+                            </div>
+                            <div class="detail-item">
+                                <strong>Status:</strong> <span id="connStatus" class="status-active"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="connection-actions">
+                            <button class="btn btn-success btn-sm" id="manualSyncBtn">
+                                <i class="fas fa-sync-alt"></i> Sincronizar Agora
+                            </button>
+                            <button class="btn btn-info btn-sm" id="viewExportUrlBtn">
+                                <i class="fas fa-link"></i> Ver URL de Exportação
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Sincronização em Andamento -->
+                    <div id="syncingStatus" style="display: none;">
+                        <div class="syncing-indicator">
+                            <div class="loading"></div>
+                            <span>Sincronizando reservas com Airbnb...</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Dica de ajuda -->
+                    <div class="info-box" style="margin-top: 1rem;">
+                        <i class="fas fa-question-circle"></i>
+                        <small>
+                            <strong>Como funciona:</strong> Conecte este quarto ao seu anúncio do Airbnb. 
+                            As reservas serão sincronizadas automaticamente nos dois sentidos!
+                        </small>
+                    </div>
+                </div>
+            </div>
         </div>
     </main>
 
@@ -169,14 +294,13 @@
                 <button type="button" class="btn btn-secondary" id="cancelCancelBtn">
                     <i class="fas fa-times"></i> Voltar
                 </button>
-                    <button type="button" class="btn btn-danger" id="confirmCancelBtn">
+                <button type="button" class="btn btn-danger" id="confirmCancelBtn">
                     <i class="fas fa-trash"></i> Confirmar Cancelamento
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- Modal para criar novo hóspede -->
     <div id="createGuestModal" class="modal">
         <div class="modal-content" style="max-width: 500px;">
             <div class="modal-header">
@@ -210,6 +334,30 @@
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="exportUrlModal" class="modal">
+        <div class="modal-content small-modal">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fas fa-link"></i> URL de Exportação iCal
+                </h3>
+                <span class="close" id="closeExportUrlModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>Copie esta URL e cole no Airbnb para importar seu calendário:</p>
+                <div class="url-container">
+                    <input type="text" id="exportUrlField" class="form-control" readonly>
+                    <button class="btn btn-info btn-sm" id="copyExportUrlBtn">
+                        <i class="fas fa-copy"></i> Copiar
+                    </button>
+                </div>
+                <div class="warning-box">
+                    <i class="fas fa-info-circle"></i>
+                    <small>Configure esta URL no Airbnb em: Calendário → Importar calendário</small>
+                </div>
             </div>
         </div>
     </div>

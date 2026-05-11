@@ -18,6 +18,7 @@ class CalendarSystem {
         this.selectedRoom = null;
         this.newGuestSearchTimeout = null;
         this.pendingReservationData = null;
+        this.establishmentInfo = null;
         
         this.initEventListeners();
         this.checkAuthentication();
@@ -25,6 +26,7 @@ class CalendarSystem {
         this.loadRooms();
         this.loadCalendar();
         this.loadReservations();
+        this.loadEstablishmentInfo();
     }
 
     checkAuthentication() {
@@ -45,7 +47,7 @@ class CalendarSystem {
     loadUserInfo() {
         try {
             const userInfoElement = document.getElementById('userInfo');
-            const userEmail = localStorage.getItem('userInfo');
+            const userEmail = localStorage.getItem('userInfo') || localStorage.getItem('userEmail');
             const userName = localStorage.getItem('userName');
             
             if (userInfoElement) {
@@ -62,6 +64,7 @@ class CalendarSystem {
             const response = await this.makeAuthenticatedRequest('/guest/all');
             if (response.ok) {
                 this.allGuests = await response.json();
+                console.log('Hóspedes carregados:', this.allGuests.length);
             } else {
                 console.error('Erro ao carregar hóspedes');
             }
@@ -84,6 +87,50 @@ class CalendarSystem {
         }
     }
 
+    async loadEstablishmentInfo() {
+        try {
+            const userEmail = localStorage.getItem('userInfo') || localStorage.getItem('userEmail');
+            
+            if (!userEmail) {
+                console.error('Email do usuário não encontrado no localStorage');
+                this.establishmentInfo = this.getDefaultEstablishmentInfo();
+                return this.establishmentInfo;
+            }
+            
+            console.log('Carregando informações para o email:', userEmail);
+            
+            const response = await this.makeAuthenticatedRequest('/us/establishment-info', {
+                method: 'POST',
+                body: JSON.stringify({ email: userEmail })
+            });
+            
+            if (response.ok) {
+                this.establishmentInfo = await response.json();
+                console.log('Informações do estabelecimento carregadas:', this.establishmentInfo);
+                return this.establishmentInfo;
+            } else {
+                console.error('Erro ao carregar informações, status:', response.status);
+                this.establishmentInfo = this.getDefaultEstablishmentInfo();
+                return this.establishmentInfo;
+            }
+        } catch (error) {
+            console.error('Erro ao carregar informações do estabelecimento:', error);
+            this.establishmentInfo = this.getDefaultEstablishmentInfo();
+            return this.establishmentInfo;
+        }
+    }
+
+    getDefaultEstablishmentInfo() {
+        return {
+            establishmentName: 'Elô AP',
+            establishmentAddress: 'QNM 16 Conjunto B',
+            establishmentPhone: '(61) 99999-9999',
+            establishmentResponsible: 'Elô',
+            establishmentLogo: '',
+            establishmentWelcomeMessage: ''
+        };
+    }
+
     initEventListeners() {
         document.getElementById('prevMonth').addEventListener('click', () => this.previousMonth());
         document.getElementById('nextMonth').addEventListener('click', () => this.nextMonth());
@@ -92,10 +139,17 @@ class CalendarSystem {
             e.preventDefault();
             this.logout();
         });
-
         document.getElementById('newReservationBtn').addEventListener('click', () => this.toggleReservationForm());
         document.getElementById('cancelReservationBtn').addEventListener('click', () => this.cancelReservation());
         document.getElementById('reserveForm').addEventListener('submit', (e) => this.handleReservation(e));
+        
+        const settingsBtn = document.getElementById('settingsBtn');
+        if (settingsBtn) {
+            settingsBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.openEstablishmentSettings();
+            });
+        }
         
         this.initAutocompleteListeners();
         setTimeout(() => this.showReservationPreview(), 500);
@@ -450,13 +504,21 @@ class CalendarSystem {
             const dateStrings = Array.from(dates);
             let hasConflict = false;
             let conflictDate = null;
+            let isSharedRoom = false;
+            
+            const room = this.allRooms.find(r => r.number === roomNumber);
+            if (room && (room.sharedRoom || room.sharedBathroom)) {
+                isSharedRoom = true;
+            }
 
             for (const dateStr of dateStrings) {
                 const reservedRooms = this.reservedDates.get(dateStr) || [];
                 if (reservedRooms.includes(roomNumber)) {
-                    hasConflict = true;
-                    conflictDate = dateStr;
-                    break;
+                    if (!isSharedRoom) {
+                        hasConflict = true;
+                        conflictDate = dateStr;
+                        break;
+                    }
                 }
             }
 
@@ -464,6 +526,13 @@ class CalendarSystem {
                 return {
                     available: false,
                     message: `Quarto ${roomNumber} já está reservado para ${this.formatDateForDisplay(conflictDate)}`
+                };
+            }
+
+            if (isSharedRoom) {
+                return {
+                    available: true,
+                    message: `Quarto compartilhado ${roomNumber} - sistema verificará disponibilidade de cama`
                 };
             }
 
@@ -485,13 +554,23 @@ class CalendarSystem {
         localStorage.removeItem('jwtToken');
         localStorage.removeItem('tokenExpiry');
         localStorage.removeItem('userInfo');
+        localStorage.removeItem('userEmail');
+        localStorage.removeItem('userName');
         window.location.href = '/login';
     }
 
     async makeAuthenticatedRequest(url, options = {}) {
+        this.token = localStorage.getItem('jwtToken');
+        
         if (!this.token) {
             this.logout();
             throw new Error('Token de autenticação não encontrado');
+        }
+
+        const tokenExpiry = localStorage.getItem('tokenExpiry');
+        if (tokenExpiry && Date.now() > parseInt(tokenExpiry)) {
+            this.logout();
+            throw new Error('Sessão expirada. Faça login novamente.');
         }
 
         const defaultOptions = {
@@ -591,6 +670,8 @@ class CalendarSystem {
         const compareDate = new Date(date);
         compareDate.setHours(0, 0, 0, 0);
         
+        // MODIFICAÇÃO: Apenas adiciona a classe 'past' para estilização visual
+        // Não impede mais o clique
         if (compareDate < today) {
             dayElement.classList.add('past');
         }
@@ -642,16 +723,25 @@ class CalendarSystem {
                 availabilityElement.textContent = `${availableRooms} livre(s)`;
                 availabilityElement.title = `${availableRooms} quarto(s) disponível(is)`;
                 eventsElement.appendChild(availabilityElement);
+            } else if (reservedRooms.length >= totalRooms && totalRooms > 0) {
+                const fullyOccupiedElement = document.createElement('div');
+                fullyOccupiedElement.className = 'event';
+                fullyOccupiedElement.style.backgroundColor = '#ff6b6b';
+                fullyOccupiedElement.textContent = `Todos lotados`;
+                fullyOccupiedElement.title = `Todos os quartos/camas estão ocupados, mas você ainda pode gerenciar reservas`;
+                eventsElement.appendChild(fullyOccupiedElement);
             }
             
             const isFormVisible = document.getElementById('reservationForm').style.display === 'block';
-            if (isFormVisible && !dayElement.classList.contains('past') && !dayElement.classList.contains('fully-reserved')) {
+            // MODIFICAÇÃO: Removida a verificação de data passada para seleção
+            if (isFormVisible) {
                 const selectIndicator = document.createElement('div');
                 selectIndicator.className = 'event available';
                 selectIndicator.style.fontSize = '0.6rem';
                 selectIndicator.style.marginTop = '2px';
                 selectIndicator.style.background = 'var(--blue-light)';
                 selectIndicator.style.color = 'white';
+                selectIndicator.textContent = 'Clique para selecionar';
                 eventsElement.appendChild(selectIndicator);
             }
         } else {
@@ -660,19 +750,12 @@ class CalendarSystem {
         
         dayElement.appendChild(eventsElement);
         
-        // MODIFICAÇÃO: Permitir clique em todos os dias não passados,
-        // inclusive os totalmente reservados (fully-reserved)
-        const isSelectable = !dayElement.classList.contains('past');
-        
-        if (isSelectable) {
-            dayElement.style.cursor = 'pointer';
-            dayElement.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.toggleDateExpansion(date);
-            });
-        } else {
-            dayElement.style.cursor = 'not-allowed';
-        }
+        // MODIFICAÇÃO: TODAS as datas são clicáveis, inclusive as passadas
+        dayElement.style.cursor = 'pointer';
+        dayElement.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggleDateExpansion(date);
+        });
         
         return dayElement;
     }
@@ -687,7 +770,7 @@ class CalendarSystem {
         if (reservationsForDate.length > 0) {
             const occupiedTitle = document.createElement('div');
             occupiedTitle.className = 'event-title';
-            occupiedTitle.textContent = 'Quartos Ocupados:';
+            occupiedTitle.textContent = 'Reservas na data:';
             occupiedTitle.style.fontWeight = 'bold';
             occupiedTitle.style.marginBottom = '2px';
             occupiedTitle.style.fontSize = '0.7rem';
@@ -700,13 +783,27 @@ class CalendarSystem {
                 
                 const eventElement = document.createElement('div');
                 eventElement.className = 'event occupied';
+                eventElement.style.cursor = 'pointer';
                 eventElement.innerHTML = `
-                    <strong>Q${roomNumber}</strong>: ${guestName}
-                    <br><small>Status: ${status}</small>
+                    <strong>Reserva #${reservation.id}</strong> - Q${roomNumber}
+                    <br><small>${guestName} (${status})</small>
                 `;
-                eventElement.title = `Hóspede: ${guestName} - Status: ${status}`;
+                eventElement.title = `Clique para gerenciar - Hóspede: ${guestName} - Status: ${status}`;
+                
+                eventElement.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.manageReservation(reservation.id);
+                });
+                
                 container.appendChild(eventElement);
             });
+        } else {
+            const noReservationsElement = document.createElement('div');
+            noReservationsElement.className = 'event-title';
+            noReservationsElement.textContent = 'Nenhuma reserva nesta data';
+            noReservationsElement.style.color = '#666';
+            noReservationsElement.style.fontSize = '0.7rem';
+            container.appendChild(noReservationsElement);
         }
 
         if (reservedRooms.length > 0 && availableRooms > 0) {
@@ -765,6 +862,50 @@ class CalendarSystem {
                 
                 container.appendChild(availableElement);
             }
+        } else if (availableRooms === 0 && totalRooms > 0) {
+            const fullyOccupiedElement = document.createElement('div');
+            fullyOccupiedElement.className = 'event';
+            fullyOccupiedElement.style.backgroundColor = '#ff6b6b';
+            fullyOccupiedElement.style.cursor = 'pointer';
+            fullyOccupiedElement.innerHTML = `<strong>⚠️ Data totalmente ocupada</strong><br><small>Todos os ${totalRooms} quartos/camas reservados</small>`;
+            fullyOccupiedElement.title = `Todos os quartos estão ocupados nesta data. Você ainda pode gerenciar as reservas existentes.`;
+            
+            fullyOccupiedElement.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const reservationsForDate = this.getReservationsForDate(dateString);
+                if (reservationsForDate.length > 0) {
+                    this.expandedDate = dateString;
+                    this.showReservationsForDate(dateString);
+                    this.loadCalendar();
+                } else {
+                    this.showAlert('Não há reservas para gerenciar nesta data', 'info');
+                }
+            });
+            
+            container.appendChild(fullyOccupiedElement);
+            
+            const forceReserveElement = document.createElement('div');
+            forceReserveElement.className = 'event';
+            forceReserveElement.style.backgroundColor = '#4a90e2';
+            forceReserveElement.style.cursor = 'pointer';
+            forceReserveElement.style.marginTop = '4px';
+            forceReserveElement.innerHTML = `<strong>➕ Nova Reserva</strong><br><small>Para quarto compartilhado</small>`;
+            forceReserveElement.title = `Forçar criação de reserva (verifica disponibilidade de cama no backend)`;
+            
+            forceReserveElement.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const form = document.getElementById('reservationForm');
+                if (form.style.display !== 'block') {
+                    form.style.display = 'block';
+                    this.selectedDates.add(dateString);
+                    this.updateSelectedDatesDisplay();
+                    this.loadCalendar();
+                    form.scrollIntoView({ behavior: 'smooth' });
+                    this.showAlert(`Data ${this.formatDateForDisplay(dateString)} selecionada. O backend verificará disponibilidade de cama.`, 'info');
+                }
+            });
+            
+            container.appendChild(forceReserveElement);
         }
     }
 
@@ -830,22 +971,9 @@ class CalendarSystem {
 
     toggleDateSelection(date) {
         const dateString = this.formatDate(date);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
         
-        if (date < today) {
-            this.showAlert('Não é possível selecionar datas passadas', 'error');
-            return;
-        }
-        
-        const reservedRooms = this.reservedDates.get(dateString) || [];
-        const totalRooms = this.allRooms.length;
-        
-        if (reservedRooms.length >= totalRooms) {
-            this.showAlert('Esta data está completamente ocupada', 'error');
-            return;
-        }
-        
+        // MODIFICAÇÃO: Não bloqueia mais a seleção de datas passadas
+        // Apenas mantém a lógica de adicionar/remover datas selecionadas
         if (this.selectedDates.has(dateString)) {
             this.selectedDates.delete(dateString);
         } else {
@@ -1187,12 +1315,6 @@ class CalendarSystem {
             return;
         }
         
-        const availability = await this.checkRoomAvailability(roomNumber, this.selectedDates);
-        if (!availability.available) {
-            this.showAlert(availability.message, 'error');
-            return;
-        }
-        
         const reserveBtn = document.getElementById('reserveBtn');
         reserveBtn.disabled = true;
         reserveBtn.innerHTML = '<div class="loading"></div> Reservando...';
@@ -1386,17 +1508,7 @@ class CalendarSystem {
     openManageModal(reservation) {
         const container = document.getElementById('manageReservationContent');
         
-        // Obter informações do hóspede
         const guestName = this.getGuestName(reservation);
-        const guestPhone = reservation.guest && reservation.guest.length > 0 ? 
-            (reservation.guest[0].phone || '(00) 00000-0000') : '(00) 00000-0000';
-        const guestRgCpf = reservation.guest && reservation.guest.length > 0 ? 
-            (reservation.guest[0].rg || 'XXXX-XXXX') : 'XXXX-XXXX';
-        
-        // Calcular valor total usando o método do backend ou calcular localmente
-        const totalValue = reservation.calculateTotalValue ? 
-            parseFloat(reservation.calculateTotalValue()).toFixed(2) :
-            this.calculateReservationTotal(reservation);
         
         const html = `
             <div>
@@ -1419,73 +1531,26 @@ class CalendarSystem {
                     </div>
                 </div>
 
-                <!-- SEÇÃO DO VOUCHER -->
-                <div class="management-section voucher-section">
-                    <h4 class="section-title">📄 Voucher de Hospedagem</h4>
-                    <div class="voucher-preview">
-                        <div class="voucher-preview-content">
-                            <h3>VOUCHER DE HOSPEDAGEM</h3>
-                            <h4>COMPROVANTE DE RESERVA</h4>
-                            
-                            <div class="reservation-code">
-                                CÓDIGO DA RESERVA: ${reservation.id.toString().padStart(6, '0')}
-                            </div>
-                            
-                            <div class="hotel-info">
-                                <div>
-                                    <p><strong>Endereço:</strong> QNM 16 Conjunto B</p>
-                                    <p><strong>Contato:</strong> (61) 99999-9999</p>
-                                </div>
-                                <div>
-                                    <p><strong>Nome do Estabelecimento:</strong> Elô AP</p>
-                                    <p><strong>Responsável:</strong> Elô</p>
-                                </div>
-                            </div>
-                            
-                            <div style="margin: 20px 0; padding: 15px; background: #f0f7ff; border-radius: 5px;">
-                                <p><strong>Check-in:</strong> ${this.getFirstReservationDate(reservation)}</p>
-                                <p><strong>Check-out:</strong> ${this.getLastReservationDate(reservation)}</p>
-                            </div>
-                            
-                            <div class="guest-info">
-                                <h4>Dados do Hóspede:</h4>
-                                <div class="guest-details">
-                                    <div>
-                                        <p><strong>Nome do hóspede:</strong> ${guestName}</p>
-                                        <p><strong>Telefone:</strong> ${guestPhone}</p>
-                                    </div>
-                                    <div>
-                                        <p><strong>RG/CPF:</strong> ${guestRgCpf}</p>
-                                        <div class="value-total">
-                                            <strong>VALOR TOTAL:</strong> ${this.formatCurrency(parseFloat(totalValue))}
-                                        </div>
-                                        <div class="value-breakdown">
-                                            ${reservation.numberOfDays ? `
-                                                <div class="value-breakdown-item">
-                                                    <span>Diária base:</span>
-                                                    <span>${this.formatCurrency(reservation.initialValue || 0)} x ${reservation.numberOfDays} dias</span>
-                                                </div>
-                                            ` : ''}
-                                            ${reservation.numberOfExtraGuests > 0 ? `
-                                                <div class="value-breakdown-item">
-                                                    <span>Taxa hóspedes extras:</span>
-                                                    <span>${this.formatCurrency(reservation.extraGuestFee || 20)} x ${reservation.numberOfExtraGuests} hóspede(s) x ${reservation.numberOfDays} dias</span>
-                                                </div>
-                                            ` : ''}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                <div class="management-section">
+                    <h4 class="section-title">⚡ Ações Rápidas</h4>
+                    <div class="action-grid">
+                        <div class="action-card" onclick="calendarSystem.openAddDatesModal(${reservation.id})">
+                            <div class="action-icon">📅</div>
+                            <div class="action-title">Adicionar Datas</div>
+                            <div class="action-description">Incluir novas datas na reserva</div>
+                        </div>
+                        <div class="action-card" onclick="calendarSystem.focusAddGuest(${reservation.id})">
+                            <div class="action-icon">👥</div>
+                            <div class="action-title">Adicionar Hóspede</div>
+                            <div class="action-description">Incluir novo hóspede</div>
+                        </div>
+                        <div class="action-card" onclick="calendarSystem.openAdvancedEditModal(${reservation.id})">
+                            <div class="action-icon">✏️</div>
+                            <div class="action-title">Edição Avançada</div>
+                            <div class="action-description">Editar valores, hóspedes e datas</div>
                         </div>
                     </div>
-                    
-                    <div class="print-controls">
-                        <button class="btn btn-primary btn-voucher" onclick="calendarSystem.generateAndDownloadVoucher(${reservation.id})" id="downloadVoucherBtn">
-                            <i class="fas fa-download"></i> Baixar Voucher (PDF)
-                        </button>
-                    </div>
                 </div>
-                <!-- FIM DA SEÇÃO DO VOUCHER -->
 
                 <div class="management-section">
                     <h4 class="section-title">📊 Status da Reserva</h4>
@@ -1517,22 +1582,6 @@ class CalendarSystem {
                                     ❌ Cancelar
                                 </button>
                             ` : ''}
-                        </div>
-                    </div>
-                </div>
-
-                <div class="management-section">
-                    <h4 class="section-title">⚡ Ações Rápidas</h4>
-                    <div class="action-grid">
-                        <div class="action-card" onclick="calendarSystem.openAddDatesModal(${reservation.id})">
-                            <div class="action-icon">📅</div>
-                            <div class="action-title">Adicionar Datas</div>
-                            <div class="action-description">Incluir novas datas na reserva</div>
-                        </div>
-                        <div class="action-card" onclick="calendarSystem.focusAddGuest(${reservation.id})">
-                            <div class="action-icon">👥</div>
-                            <div class="action-title">Adicionar Hóspede</div>
-                            <div class="action-description">Incluir novo hóspede</div>
                         </div>
                     </div>
                 </div>
@@ -1591,6 +1640,18 @@ class CalendarSystem {
                         </div>
                     </div>
                 </div>
+
+                <div class="management-section voucher-section">
+                    <h4 class="section-title">📄 Voucher de Hospedagem</h4>
+                    <div class="voucher-preview-modern" id="modernVoucherPreview">
+                        ${this.generateModernVoucherHTML(reservation)}
+                    </div>
+                    <div class="print-controls" style="margin-top: 1rem;">
+                        <button class="btn btn-primary btn-voucher" onclick="calendarSystem.downloadModernVoucher(${reservation.id})">
+                            <i class="fas fa-download"></i> Baixar Voucher (PDF)
+                        </button>
+                    </div>
+                </div>
             </div>
         `;
 
@@ -1603,19 +1664,23 @@ class CalendarSystem {
     }
 
     calculateReservationTotal(reservation) {
-        // Cálculo local se o backend não fornecer calculateTotalValue
-        const initialValue = reservation.initialValue || 0;
+        const dailyRate = reservation.dailyRate || 0;
         const numberOfDays = reservation.reservedDays ? 
             (Array.isArray(reservation.reservedDays) ? reservation.reservedDays.length : reservation.reservedDays.size) : 0;
-        const extraGuestFee = reservation.extraGuestFee || 20;
+        const extraGuestDailyFee = reservation.extraGuestDailyFee || 0;
         const numberOfExtraGuests = Math.max(0, (reservation.guest ? 
             (Array.isArray(reservation.guest) ? reservation.guest.length : reservation.guest.size) : 0) - 1);
         
-        // Calcular valor total: (valor inicial × dias) + (taxa extra × hóspedes extras × dias)
-        const baseTotal = initialValue * numberOfDays;
-        const extraTotal = extraGuestFee * numberOfExtraGuests * numberOfDays;
+        const baseTotal = dailyRate * numberOfDays;
+        const extraTotal = extraGuestDailyFee * numberOfExtraGuests * numberOfDays;
         
-        return (baseTotal + extraTotal).toFixed(2);
+        let finalTotal = baseTotal + extraTotal;
+        
+        if (reservation.useCustomAmount === true && reservation.customTotalAmount) {
+            finalTotal = parseFloat(reservation.customTotalAmount);
+        }
+        
+        return finalTotal.toFixed(2);
     }
 
     formatCurrency(value) {
@@ -1643,116 +1708,226 @@ class CalendarSystem {
         return 'N/A';
     }
 
-    async generateAndDownloadVoucher(reservationId) {
+    generateModernVoucherHTML(reservation) {
+        const guestName = this.getGuestName(reservation);
+        const checkInDate = this.getFirstReservationDate(reservation);
+        const checkOutDate = this.getLastReservationDate(reservation);
+        const roomNumber = this.getRoomNumber(reservation);
+        const guestCount = reservation.guest?.length || 1;
+        const daysCount = reservation.reservedDays?.length || 0;
+        
+        const dailyRate = reservation.dailyRate || 0;
+        const extraGuestDailyFee = reservation.extraGuestDailyFee || 0;
+        const extraGuests = Math.max(0, guestCount - 1);
+        const baseTotal = dailyRate * daysCount;
+        const extraTotal = extraGuestDailyFee * extraGuests * daysCount;
+        let total = baseTotal + extraTotal;
+        
+        if (reservation.useCustomAmount === true && reservation.customTotalAmount) {
+            total = parseFloat(reservation.customTotalAmount);
+        }
+        
+        const estInfo = this.establishmentInfo || this.getDefaultEstablishmentInfo();
+        
+        let welcomeMessage;
+        if (estInfo.establishmentWelcomeMessage && estInfo.establishmentWelcomeMessage.trim() !== '') {
+            welcomeMessage = estInfo.establishmentWelcomeMessage.replace('{guest}', guestName);
+        } else {
+            welcomeMessage = this.getRandomWelcomeMessage(guestName);
+        }
+        
+        const logoHtml = estInfo.establishmentLogo ? 
+            `<img src="${estInfo.establishmentLogo}" alt="Logo" style="max-height: 50px; margin-bottom: 10px;">` : '';
+        
+        return `
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px; padding: 2px; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+                <div style="background: white; border-radius: 18px; padding: 25px;">
+                    <div style="text-align: center; margin-bottom: 25px;">
+                        ${logoHtml}
+                        <div style="background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                            <h1 style="font-size: 28px; margin: 0; letter-spacing: 2px;">🏨 ${this.escapeHtml(estInfo.establishmentName)}</h1>
+                            <p style="font-size: 14px; margin: 5px 0 0 0; opacity: 0.7;">COMPROVANTE DE RESERVA</p>
+                        </div>
+                    </div>
+
+                    <div style="background: linear-gradient(135deg, #f5f0ff 0%, #e8e0ff 100%); border-radius: 15px; padding: 20px; margin-bottom: 25px; text-align: center; border-left: 4px solid #667eea;">
+                        <div style="font-size: 42px; margin-bottom: 10px;">🎉</div>
+                        <h2 style="color: #4a5568; margin: 0 0 10px 0; font-size: 22px;">✨ ${this.escapeHtml(welcomeMessage)} ✨</h2>
+                        <p style="color: #667eea; margin: 0; font-size: 15px;">Sua experiência começa aqui! Estamos felizes em recebê-lo(a).</p>
+                    </div>
+
+                    <div style="background: #2d3748; border-radius: 12px; padding: 15px; text-align: center; margin-bottom: 25px;">
+                        <span style="color: #a0aec0; font-size: 12px; letter-spacing: 2px;">CÓDIGO DA RESERVA</span>
+                        <div style="color: #ffd700; font-size: 28px; font-weight: bold; font-family: monospace;">#${reservation.id.toString().padStart(6, '0')}</div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 25px;">
+                        <div style="background: #f7fafc; border-radius: 12px; padding: 15px;">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                                <span style="font-size: 24px;">📅</span>
+                                <div>
+                                    <div style="font-size: 11px; color: #a0aec0;">CHECK-IN</div>
+                                    <div style="font-weight: bold; color: #2d3748;">${checkInDate}</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span style="font-size: 24px;">🏁</span>
+                                <div>
+                                    <div style="font-size: 11px; color: #a0aec0;">CHECK-OUT</div>
+                                    <div style="font-weight: bold; color: #2d3748;">${checkOutDate}</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="background: #f7fafc; border-radius: 12px; padding: 15px;">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                                <span style="font-size: 24px;">🛏️</span>
+                                <div>
+                                    <div style="font-size: 11px; color: #a0aec0;">QUARTO</div>
+                                    <div style="font-weight: bold; color: #2d3748;">${roomNumber}</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span style="font-size: 24px;">👥</span>
+                                <div>
+                                    <div style="font-size: 11px; color: #a0aec0;">HÓSPEDES</div>
+                                    <div style="font-weight: bold; color: #2d3748;">${guestCount} pessoa(s)</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="background: #ebf8ff; border-radius: 12px; padding: 15px; margin-bottom: 25px; border-left: 4px solid #4299e1;">
+                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+                            <span style="font-size: 28px;">👤</span>
+                            <div>
+                                <div style="font-size: 12px; color: #4299e1;">HÓSPEDE PRINCIPAL</div>
+                                <div style="font-weight: bold; font-size: 18px; color: #2b6cb0;">${this.escapeHtml(guestName)}</div>
+                            </div>
+                        </div>
+                        ${reservation.guest && reservation.guest.length > 1 ? `
+                            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #bee3f8;">
+                                <div style="font-size: 12px; color: #4299e1; margin-bottom: 5px;">HÓSPEDES ADICIONAIS</div>
+                                ${reservation.guest.slice(1).map(g => `<span style="background: #bee3f8; padding: 4px 10px; border-radius: 20px; font-size: 13px; display: inline-block; margin: 3px;">👤 ${this.escapeHtml(g.name)}</span>`).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+
+                    <div style="background: #fef5e7; border-radius: 12px; padding: 15px; margin-bottom: 25px;">
+                        <h3 style="color: #d69e2e; margin: 0 0 15px 0; font-size: 16px;">💰 DETALHAMENTO DE VALORES</h3>
+                        <div class="value-breakdown">
+                            <div class="value-breakdown-item">
+                                <span>🏠 Diária:</span>
+                                <span>R$ ${dailyRate.toFixed(2)} x ${daysCount} dias = R$ ${(dailyRate * daysCount).toFixed(2)}</span>
+                            </div>
+                            ${extraGuests > 0 ? `
+                                <div class="value-breakdown-item">
+                                    <span>👥 Hóspedes extras:</span>
+                                    <span>R$ ${extraGuestDailyFee.toFixed(2)} x ${extraGuests} x ${daysCount} dias = R$ ${(extraGuestDailyFee * extraGuests * daysCount).toFixed(2)}</span>
+                                </div>
+                            ` : ''}
+                            ${reservation.useCustomAmount === true && reservation.customTotalAmount ? `
+                                <div class="value-breakdown-item">
+                                    <span>🎯 Valor Customizado:</span>
+                                    <span>R$ ${parseFloat(reservation.customTotalAmount).toFixed(2)}</span>
+                                </div>
+                            ` : ''}
+                            <div class="value-total" style="margin-top: 12px; padding-top: 12px; border-top: 2px solid #fbd38d;">
+                                <strong>VALOR TOTAL:</strong> R$ ${total.toFixed(2)}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="background: #edf2f7; border-radius: 12px; padding: 15px; font-size: 12px; color: #4a5568;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                            <span>🏢</span>
+                            <span><strong>${this.escapeHtml(estInfo.establishmentName)}</strong> - ${this.escapeHtml(estInfo.establishmentAddress)}</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                            <span>📞</span>
+                            <span>Contato: ${this.escapeHtml(estInfo.establishmentPhone)} | Responsável: ${this.escapeHtml(estInfo.establishmentResponsible)}</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span>💡</span>
+                            <span>Apresente este voucher digital ou impresso no check-in</span>
+                        </div>
+                    </div>
+
+                    <div style="text-align: center; margin-top: 20px; padding-top: 15px; border-top: 1px solid #e2e8f0;">
+                        <p style="color: #a0aec0; font-size: 11px; margin: 0;">Documento gerado automaticamente pelo Sistema Interactive Edge</p>
+                        <p style="color: #667eea; font-size: 12px; margin: 8px 0 0 0;">⭐ Tenha uma estadia maravilhosa! ⭐</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    getRandomWelcomeMessage(guestName) {
+        const messages = [
+            `Bem-vindo(a) ao seu lar temporário, ${guestName}!`,
+            `É uma alegria recebê-lo(a), ${guestName}! Aproveite cada momento!`,
+            `Oi ${guestName}! Sua aventura começa agora. Curta cada segundo!`,
+            `Que bom ter você aqui, ${guestName}! Desfrute de uma estadia incrível!`,
+            `${guestName}, sua casa longe de casa está pronta para você!`,
+            `Seja muito bem-vindo(a), ${guestName}! Estamos felizes com sua visita!`
+        ];
+        return messages[Math.floor(Math.random() * messages.length)];
+    }
+
+    async downloadModernVoucher(reservationId) {
         try {
             const response = await this.makeAuthenticatedRequest(`${this.baseUrl}/find/${reservationId}`);
-            
             if (response.ok) {
                 const reservation = await response.json();
                 
-                // Desabilitar botão e mostrar loading
-                const downloadBtn = document.getElementById('downloadVoucherBtn');
-                if (downloadBtn) {
-                    const originalText = downloadBtn.innerHTML;
-                    downloadBtn.disabled = true;
-                    downloadBtn.innerHTML = '<div class="loading"></div> Gerando PDF...';
-                    
-                    // Restaurar botão após 3 segundos (caso o PDF falhe)
-                    setTimeout(() => {
-                        if (downloadBtn.disabled) {
-                            downloadBtn.disabled = false;
-                            downloadBtn.innerHTML = originalText;
-                        }
-                    }, 3000);
-                }
-                
-                // Mostrar alerta de processamento
                 Swal.fire({
-                    title: 'Gerando PDF...',
-                    text: 'Por favor, aguarde enquanto o voucher é gerado.',
+                    title: 'Gerando Voucher...',
+                    text: 'Por favor, aguarde enquanto preparamos seu voucher personalizado.',
                     allowOutsideClick: false,
-                    didOpen: () => {
-                        Swal.showLoading();
-                    }
+                    didOpen: () => Swal.showLoading()
                 });
                 
-                // Gerar PDF usando HTML2Canvas (melhor para manter layout)
-                await this.generatePDFFromHTML(reservation);
+                await this.generateModernPDFVoucher(reservation);
                 
-                // Fechar alerta
                 Swal.close();
-                
-                // Restaurar botão
-                if (downloadBtn) {
-                    downloadBtn.disabled = false;
-                    downloadBtn.innerHTML = '<i class="fas fa-download"></i> Baixar Voucher (PDF)';
-                }
-                
-                this.showAlert('Voucher baixado com sucesso!', 'success');
-                
+                this.showAlert('Voucher gerado com sucesso!', 'success');
             } else {
-                throw new Error('Erro ao carregar dados da reserva');
+                throw new Error('Erro ao carregar reserva');
             }
         } catch (error) {
             console.error('Erro ao gerar voucher:', error);
             Swal.close();
-            
-            // Restaurar botão em caso de erro
-            const downloadBtn = document.getElementById('downloadVoucherBtn');
-            if (downloadBtn) {
-                downloadBtn.disabled = false;
-                downloadBtn.innerHTML = '<i class="fas fa-download"></i> Baixar Voucher (PDF)';
-            }
-            
             this.showAlert('Erro ao gerar voucher: ' + error.message, 'error');
         }
     }
 
-    async generatePDFFromHTML(reservation) {
+    async generateModernPDFVoucher(reservation) {
         return new Promise(async (resolve, reject) => {
             try {
-                // Verificar se as bibliotecas estão disponíveis
-                if (typeof html2canvas === 'undefined') {
-                    throw new Error('Biblioteca html2canvas não carregada. Adicione o script no HTML.');
-                }
-                
-                if (typeof jspdf === 'undefined') {
-                    throw new Error('Biblioteca jsPDF não carregada. Adicione o script no HTML.');
-                }
-                
-                // Criar elemento HTML temporário com estilo otimizado para PDF
                 const tempDiv = document.createElement('div');
                 tempDiv.style.position = 'absolute';
                 tempDiv.style.left = '-9999px';
                 tempDiv.style.top = '0';
-                tempDiv.style.width = '794px'; // A4 em pixels (210mm)
-                tempDiv.style.minHeight = '1123px'; // Altura A4
-                tempDiv.style.padding = '40px';
+                tempDiv.style.width = '794px';
+                tempDiv.style.padding = '30px';
                 tempDiv.style.backgroundColor = 'white';
-                tempDiv.style.fontFamily = 'Arial, Helvetica, sans-serif';
+                tempDiv.style.fontFamily = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
                 tempDiv.style.boxSizing = 'border-box';
                 
-                // Gerar conteúdo HTML otimizado para PDF
-                tempDiv.innerHTML = this.generatePDFVoucherHTML(reservation);
+                tempDiv.innerHTML = this.generateModernVoucherHTML(reservation);
                 document.body.appendChild(tempDiv);
                 
-                // Aguardar renderização
                 await new Promise(resolve => setTimeout(resolve, 500));
                 
-                // Converter para canvas com alta qualidade
                 const canvas = await html2canvas(tempDiv, {
-                    scale: 2, // Maior qualidade
+                    scale: 2,
                     useCORS: true,
                     logging: false,
-                    backgroundColor: '#ffffff',
-                    allowTaint: true,
-                    removeContainer: true
+                    backgroundColor: '#ffffff'
                 });
                 
-                // Limpar elemento temporário
                 document.body.removeChild(tempDiv);
                 
-                // Converter canvas para PDF
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF({
                     orientation: 'portrait',
@@ -1764,249 +1939,124 @@ class CalendarSystem {
                 const pdfWidth = doc.internal.pageSize.getWidth();
                 const pdfHeight = doc.internal.pageSize.getHeight();
                 
-                // Adicionar imagem ao PDF
                 doc.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
                 
-                // Nome do arquivo
                 const guestName = this.getGuestName(reservation);
                 const safeFileName = guestName.replace(/[^a-zA-Z0-9]/g, '_');
-                const fileName = `Voucher_Reserva_${reservation.id}_${safeFileName}.pdf`;
+                const fileName = `Voucher_${reservation.id}_${safeFileName}.pdf`;
                 
-                // Baixar PDF
                 doc.save(fileName);
-                
                 resolve();
                 
             } catch (error) {
-                console.error('Erro no generatePDFFromHTML:', error);
-                
-                // Fallback: tentar método simples
-                try {
-                    await this.generateSimplePDFVoucher(reservation);
-                    resolve();
-                } catch (fallbackError) {
-                    reject(fallbackError);
-                }
-            }
-        });
-    }
-
-    generatePDFVoucherHTML(reservation) {
-        const firstDate = this.getFirstReservationDate(reservation);
-        const lastDate = this.getLastReservationDate(reservation);
-        const guestName = this.getGuestName(reservation);
-        const guestPhone = reservation.guest && reservation.guest.length > 0 ? 
-            (reservation.guest[0].phone || '(00) 00000-0000') : '(00) 00000-0000';
-        const guestRgCpf = reservation.guest && reservation.guest.length > 0 ? 
-            (reservation.guest[0].rg || 'XXXX-XXXX') : 'XXXX-XXXX';
-        const roomNumber = this.getRoomNumber(reservation);
-        
-        // Calcular valor total
-        const totalValue = reservation.calculateTotalValue ? 
-            parseFloat(reservation.calculateTotalValue()).toFixed(2) :
-            this.calculateReservationTotal(reservation);
-        
-        return `
-            <div style="width: 100%; height: 100%; background: white; color: #333;">
-                <!-- Cabeçalho -->
-                <div style="text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 3px solid #ff9800;">
-                    <h1 style="color: #ff9800; font-size: 28px; margin: 0; text-transform: uppercase;">VOUCHER DE HOSPEDAGEM</h1>
-                    <h2 style="color: #ff5722; font-size: 18px; margin: 5px 0 0 0; font-weight: normal;">COMPROVANTE DE RESERVA</h2>
-                </div>
-                
-                <!-- Código da Reserva -->
-                <div style="background: #fff3cd; padding: 15px; text-align: center; font-size: 20px; font-weight: bold; margin: 20px 0; border: 2px dashed #ff9800; border-radius: 5px;">
-                    CÓDIGO DA RESERVA: ${reservation.id.toString().padStart(6, '0')}
-                </div>
-                
-                <!-- Informações do Hotel -->
-                <div style="display: flex; justify-content: space-between; margin-bottom: 30px; padding: 20px; background: #f9f9f9; border-radius: 5px;">
-                    <div>
-                        <p style="margin: 8px 0;"><strong>Endereço:</strong> QNM 16 Conjunto B</p>
-                        <p style="margin: 8px 0;"><strong>Contato:</strong> (61) 99999-9999</p>
-                    </div>
-                    <div>
-                        <p style="margin: 8px 0;"><strong>Nome do Estabelecimento:</strong> Elô AP</p>
-                        <p style="margin: 8px 0;"><strong>Responsável:</strong> Elô</p>
-                    </div>
-                </div>
-                
-                <!-- Datas da Hospedagem -->
-                <div style="background: #e8f5e9; padding: 20px; margin: 20px 0; border-radius: 5px; border-left: 5px solid #4caf50;">
-                    <h3 style="color: #2e7d32; margin-top: 0;">Datas da Hospedagem:</h3>
-                    <p style="margin: 8px 0;"><strong>Check-in:</strong> ${firstDate}</p>
-                    <p style="margin: 8px 0;"><strong>Check-out:</strong> ${lastDate}</p>
-                    <p style="margin: 8px 0;"><strong>Quarto:</strong> ${roomNumber}</p>
-                </div>
-                
-                <!-- Dados do Hóspede -->
-                <div style="background: #e3f2fd; padding: 25px; margin: 25px 0; border-radius: 5px; border-left: 5px solid #2196f3;">
-                    <h3 style="color: #1565c0; margin-top: 0;">Dados do Hóspede:</h3>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
-                        <div>
-                            <p style="margin: 8px 0;"><strong>Nome do hóspede:</strong> ${guestName}</p>
-                            <p style="margin: 8px 0;"><strong>Telefone:</strong> ${guestPhone}</p>
-                        </div>
-                        <div>
-                            <p style="margin: 8px 0;"><strong>RG/CPF:</strong> ${guestRgCpf}</p>
-                        </div>
-                    </div>
-                    
-                    <!-- Detalhamento do Valor -->
-                    <div style="margin-top: 15px; padding: 15px; background: white; border-radius: 5px; border: 1px solid #ddd;">
-                        <h4 style="margin-top: 0;">Detalhamento do Valor:</h4>
-                        ${reservation.numberOfDays ? `
-                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px; padding: 5px 0; border-bottom: 1px solid #eee;">
-                                <span>Diária base:</span>
-                                <span>${this.formatCurrency(reservation.initialValue || 0)} x ${reservation.numberOfDays} dias</span>
-                            </div>
-                        ` : ''}
-                        ${reservation.numberOfExtraGuests > 0 ? `
-                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px; padding: 5px 0; border-bottom: 1px solid #eee;">
-                                <span>Taxa hóspedes extras:</span>
-                                <span>${this.formatCurrency(reservation.extraGuestFee || 20)} x ${reservation.numberOfExtraGuests} hóspede(s) x ${reservation.numberOfDays} dias</span>
-                            </div>
-                        ` : ''}
-                        <div style="font-weight: bold; font-size: 1.2em; color: #2196F3; margin-top: 15px; padding-top: 15px; border-top: 2px solid #ddd; text-align: right;">
-                            <strong>VALOR TOTAL:</strong> ${this.formatCurrency(parseFloat(totalValue))}
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Termos e Condições -->
-                <div style="padding: 20px; background: #fffde7; border-radius: 5px; border: 1px solid #ffd54f; margin-top: 30px; font-size: 13px; line-height: 1.6;">
-                    <h3 style="color: #ff9800; margin-top: 0;">Termos e Condições:</h3>
-                    <p>Seja bem-vindo ao nosso espaço de acomodação! Esperamos que você esteja bem e que se sinta em casa. Vamos passar aqui apenas algumas informações importantes para que sua estádia seja agradável e tranquila.</p>
-                    <p>Seu quarto possuí equipamentos funcionais que estão à sua disposição, assim como talheres, utensílios e eletrodomésticos (Geladeira, Airfryer, TV, etc.). Pedimos que utilize com zelo, pois danos, ou objetos quebrados podem ser cobrados ao fim da estádia.</p>
-                    <p>Caso o hóspede perca a chave ele deve ressarcir o valor da(s) cópia(s).</p>
-                    <p>Nossa política de devolução respeita à vigente nos aplicativos de hospedagens, para reservas feitas nos mesmos, ou devolução integral do valor pago para desistências avisadas com até 5 dias de antecedência, e devolução parcial para desistências avisadas com menos de 5 dias (Neste caso o valor deve ser consultado com o Responsável). Para hóspedes que não compareçam à estádia e não avisem com prazo de até 24 horas do dia marcado para o check in, não terá direito à devolução.</p>
-                    <p>Essas são as nossas regras, e desejamos uma boa hospedagem! ♥️</p>
-                </div>
-                
-                <!-- Assinatura -->
-                <div style="margin-top: 50px; padding-top: 20px; border-top: 2px solid #333; text-align: right;">
-                    <p style="margin: 10px 0;">_________________________________________</p>
-                    <p style="margin: 10px 0;"><strong>Responsável:</strong> Elô</p>
-                    <p style="margin: 10px 0;"><strong>Data:</strong> ${new Date().toLocaleDateString('pt-BR')}</p>
-                </div>
-                
-                <!-- Rodapé -->
-                <div style="margin-top: 20px; padding-top: 10px; border-top: 1px solid #ccc; text-align: center; font-size: 10px; color: #666;">
-                    Documento gerado automaticamente pelo Sistema Interactive Edge
-                </div>
-            </div>
-        `;
-    }
-
-    // Método de fallback simples
-    async generateSimplePDFVoucher(reservation) {
-        return new Promise((resolve, reject) => {
-            try {
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF();
-                
-                // Dados básicos
-                const guestName = this.getGuestName(reservation);
-                const totalValue = reservation.calculateTotalValue ? 
-                    parseFloat(reservation.calculateTotalValue()).toFixed(2) :
-                    this.calculateReservationTotal(reservation);
-                
-                // Configuração
-                doc.setFont('helvetica');
-                
-                // Cabeçalho
-                doc.setFontSize(20);
-                doc.setTextColor(255, 152, 0); // Laranja
-                doc.text('VOUCHER DE HOSPEDAGEM', 105, 20, { align: 'center' });
-                
-                doc.setFontSize(14);
-                doc.setTextColor(255, 87, 34); // Laranja escuro
-                doc.text('COMPROVANTE DE RESERVA', 105, 30, { align: 'center' });
-                
-                // Linha divisória
-                doc.setDrawColor(255, 152, 0);
-                doc.setLineWidth(0.5);
-                doc.line(20, 35, 190, 35);
-                
-                // Código da Reserva
-                doc.setFontSize(16);
-                doc.setTextColor(102, 60, 0); // Marrom
-                doc.text(`CÓDIGO: ${reservation.id.toString().padStart(6, '0')}`, 105, 45, { align: 'center' });
-                
-                // Informações do Hotel
-                doc.setFontSize(11);
-                doc.setTextColor(0, 0, 0);
-                doc.setFont('helvetica', 'bold');
-                doc.text('ELÔ AP - HOSPEDAGEM', 20, 60);
-                doc.setFont('helvetica', 'normal');
-                doc.text('Endereço: QNM 16 Conjunto B', 20, 68);
-                doc.text('Contato: (61) 99999-9999', 20, 76);
-                doc.text('Responsável: Elô', 20, 84);
-                
-                // Datas
-                doc.setFont('helvetica', 'bold');
-                doc.text('DATAS DA HOSPEDAGEM:', 20, 95);
-                doc.setFont('helvetica', 'normal');
-                doc.text(`Check-in: ${this.getFirstReservationDate(reservation)}`, 20, 103);
-                doc.text(`Check-out: ${this.getLastReservationDate(reservation)}`, 20, 111);
-                doc.text(`Quarto: ${this.getRoomNumber(reservation)}`, 20, 119);
-                
-                // Dados do Hóspede
-                doc.setFont('helvetica', 'bold');
-                doc.text('DADOS DO HÓSPEDE:', 20, 130);
-                doc.setFont('helvetica', 'normal');
-                doc.text(`Nome: ${guestName}`, 20, 138);
-                doc.text(`Telefone: ${reservation.guest && reservation.guest.length > 0 ? (reservation.guest[0].phone || 'Não informado') : 'Não informado'}`, 20, 146);
-                doc.text(`RG/CPF: ${reservation.guest && reservation.guest.length > 0 ? (reservation.guest[0].rg || 'Não informado') : 'Não informado'}`, 20, 154);
-                
-                // Valor
-                doc.setFont('helvetica', 'bold');
-                doc.text('VALOR TOTAL:', 20, 165);
-                doc.setFontSize(14);
-                doc.setTextColor(33, 150, 243); // Azul
-                doc.text(`R$ ${totalValue}`, 60, 165);
-                
-                // Detalhamento do Valor
-                doc.setFontSize(9);
-                doc.setTextColor(0, 0, 0);
-                doc.setFont('helvetica', 'normal');
-                
-                let yPos = 175;
-                if (reservation.numberOfDays) {
-                    const dailyValue = reservation.initialValue || 0;
-                    doc.text(`Diária base: R$ ${dailyValue.toFixed(2)} x ${reservation.numberOfDays} dias`, 20, yPos);
-                    yPos += 5;
-                }
-                
-                if (reservation.numberOfExtraGuests > 0) {
-                    const extraFee = reservation.extraGuestFee || 20;
-                    doc.text(`Taxa hóspedes extras: R$ ${extraFee.toFixed(2)} x ${reservation.numberOfExtraGuests} hóspede(s) x ${reservation.numberOfDays} dias`, 20, yPos);
-                    yPos += 5;
-                }
-                
-                // Assinatura
-                doc.setDrawColor(0, 0, 0);
-                doc.setLineWidth(0.5);
-                doc.line(120, 250, 190, 250);
-                
-                doc.setFontSize(10);
-                doc.text('Responsável: Elô', 120, 260);
-                doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 120, 267);
-                
-                // Rodapé
-                doc.setFontSize(7);
-                doc.setTextColor(128, 128, 128);
-                doc.text('Documento gerado automaticamente pelo Sistema Interactive Edge', 105, 285, { align: 'center' });
-                
-                // Baixar
-                doc.save(`Voucher_${reservation.id}.pdf`);
-                
-                resolve();
-                
-            } catch (error) {
+                console.error('Erro ao gerar PDF moderno:', error);
                 reject(error);
             }
         });
+    }
+
+    async openEstablishmentSettings() {
+        if (!this.establishmentInfo) {
+            await this.loadEstablishmentInfo();
+        }
+        
+        const modal = document.createElement('div');
+        modal.id = 'establishmentSettingsModal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h3 class="modal-title"><i class="fas fa-building"></i> Configurações do Estabelecimento</h3>
+                    <span class="close" onclick="this.closest('.modal').remove()">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <form id="establishmentSettingsForm">
+                        <div class="form-group">
+                            <label for="estName" class="form-label">Nome do Estabelecimento</label>
+                            <input type="text" id="estName" class="form-control" value="${this.escapeHtml(this.establishmentInfo.establishmentName || '')}">
+                        </div>
+                        <div class="form-group">
+                            <label for="estAddress" class="form-label">Endereço</label>
+                            <input type="text" id="estAddress" class="form-control" value="${this.escapeHtml(this.establishmentInfo.establishmentAddress || '')}">
+                        </div>
+                        <div class="form-group">
+                            <label for="estPhone" class="form-label">Telefone de Contato</label>
+                            <input type="text" id="estPhone" class="form-control" value="${this.escapeHtml(this.establishmentInfo.establishmentPhone || '')}">
+                        </div>
+                        <div class="form-group">
+                            <label for="estResponsible" class="form-label">Nome do Responsável</label>
+                            <input type="text" id="estResponsible" class="form-control" value="${this.escapeHtml(this.establishmentInfo.establishmentResponsible || '')}">
+                        </div>
+                        <div class="form-group">
+                            <label for="estWelcomeMessage" class="form-label">Mensagem de Boas-vindas Personalizada (opcional)</label>
+                            <textarea id="estWelcomeMessage" class="form-control" rows="3" placeholder="Deixe em branco para usar mensagens automáticas. Use {guest} para o nome do hóspede.">${this.escapeHtml(this.establishmentInfo.establishmentWelcomeMessage || '')}</textarea>
+                            <small class="form-text text-muted">Se deixar em branco, serão usadas mensagens de boas-vindas aleatórias.</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="estLogo" class="form-label">URL do Logo (opcional)</label>
+                            <input type="text" id="estLogo" class="form-control" value="${this.escapeHtml(this.establishmentInfo.establishmentLogo || '')}" placeholder="https://exemplo.com/logo.png">
+                            <small class="form-text text-muted">Adicione uma URL de imagem para usar como logo no voucher.</small>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="this.closest('.modal').remove()">Cancelar</button>
+                    <button class="btn btn-primary" onclick="calendarSystem.saveEstablishmentSettings()">
+                        <i class="fas fa-save"></i> Salvar Configurações
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        modal.style.display = 'block';
+    }
+
+    async saveEstablishmentSettings() {
+        const estName = document.getElementById('estName')?.value.trim() || '';
+        const estAddress = document.getElementById('estAddress')?.value.trim() || '';
+        const estPhone = document.getElementById('estPhone')?.value.trim() || '';
+        const estResponsible = document.getElementById('estResponsible')?.value.trim() || '';
+        const estWelcomeMessage = document.getElementById('estWelcomeMessage')?.value.trim() || '';
+        const estLogo = document.getElementById('estLogo')?.value.trim() || '';
+        
+        const userEmail = localStorage.getItem('userInfo') || localStorage.getItem('userEmail');
+        
+        if (!userEmail) {
+            this.showAlert('Email do usuário não encontrado. Faça login novamente.', 'error');
+            return;
+        }
+        
+        try {
+            const response = await this.makeAuthenticatedRequest('/us/update-establishment-info', {
+                method: 'PUT',
+                body: JSON.stringify({
+                    email: userEmail,
+                    establishmentName: estName,
+                    establishmentAddress: estAddress,
+                    establishmentPhone: estPhone,
+                    establishmentResponsible: estResponsible,
+                    establishmentWelcomeMessage: estWelcomeMessage,
+                    establishmentLogo: estLogo
+                })
+            });
+            
+            if (response.ok) {
+                this.showAlert('Configurações salvas com sucesso!', 'success');
+                document.getElementById('establishmentSettingsModal')?.remove();
+                await this.loadEstablishmentInfo();
+                
+                if (this.currentReservationId) {
+                    await this.manageReservation(this.currentReservationId);
+                }
+            } else {
+                const error = await response.json();
+                throw new Error(error.message || 'Erro ao salvar configurações');
+            }
+        } catch (error) {
+            console.error('Erro ao salvar configurações:', error);
+            this.showAlert('Erro ao salvar configurações: ' + error.message, 'error');
+        }
     }
 
     initManageModalAutocomplete() {
@@ -2056,9 +2106,8 @@ class CalendarSystem {
         
         if (filteredGuests.length === 0) {
             suggestionsContainer.innerHTML = `
-                <div class="suggestion-item">
-                    <div><i class="fas fa-exclamation-circle"></i> Nenhum hóspede encontrado</div>
-                    <div class="suggestion-details">Clique no botão "Criar Novo Hóspede"</div>
+                <div class="suggestion-item no-results" style="color: #666; cursor: default;">
+                    <i class="fas fa-info-circle"></i> Nenhum hóspede encontrado
                 </div>
             `;
             suggestionsContainer.classList.add('show');
@@ -2078,7 +2127,7 @@ class CalendarSystem {
         suggestionsContainer.innerHTML = suggestionsHTML;
         suggestionsContainer.classList.add('show');
         
-        suggestionsContainer.querySelectorAll('.suggestion-item').forEach(item => {
+        suggestionsContainer.querySelectorAll('.suggestion-item:not(.no-results)').forEach(item => {
             item.addEventListener('click', (e) => {
                 const guestName = e.currentTarget.getAttribute('data-guest-name');
                 input.value = guestName;
@@ -2090,6 +2139,7 @@ class CalendarSystem {
     hideNewGuestSuggestions() {
         const suggestionsContainer = document.getElementById('newGuestSuggestions');
         suggestionsContainer.classList.remove('show');
+        suggestionsContainer.innerHTML = '';
     }
 
     handleNewGuestKeydown(e) {
@@ -2500,20 +2550,553 @@ class CalendarSystem {
             if (response.ok) {
                 const newGuest = await response.json();
                 this.allGuests.push(newGuest);
-                
-                const newGuestInput = document.getElementById('newGuestName');
-                if (newGuestInput) {
-                    newGuestInput.value = newGuest.name;
-                }
-                
-                this.closeCreateGuestModal();
                 this.showAlert('Hóspede criado com sucesso!', 'success');
+                this.closeCreateGuestModal();
+                
+                if (this.currentReservationId) {
+                    await this.addGuestToReservation(this.currentReservationId);
+                }
             } else {
                 throw new Error('Erro ao criar hóspede');
             }
         } catch (error) {
             console.error('Erro ao criar hóspede:', error);
             this.showAlert('Erro ao criar hóspede: ' + error.message, 'error');
+        }
+    }
+
+    async openAdvancedEditModal(reservationId) {
+        try {
+            console.log('Abrindo edição avançada para reserva:', reservationId);
+            const response = await this.makeAuthenticatedRequest(`${this.baseUrl}/find/${reservationId}`);
+            if (response.ok) {
+                const reservation = await response.json();
+                this.currentReservationId = reservationId;
+                
+                let existingCustomTotal = '';
+                let existingDailyRate = reservation.dailyRate || 0;
+                let existingExtraFee = reservation.extraGuestDailyFee || 0;
+                let isUsingCustomValue = reservation.useCustomAmount === true;
+
+                let manualAdjustmentValue = 0;
+                if (isUsingCustomValue && reservation.customTotalAmount) {
+                    const calculatedTotal = this.calculateReservationTotal(reservation);
+                    manualAdjustmentValue = parseFloat(reservation.customTotalAmount) - parseFloat(calculatedTotal);
+                }
+                
+                const modal = document.createElement('div');
+                modal.id = 'advancedEditModal';
+                modal.className = 'modal';
+                modal.innerHTML = `
+                    <div class="modal-content" style="max-width: 900px;">
+                        <div class="modal-header">
+                            <h3 class="modal-title">✏️ Edição Avançada da Reserva #${reservation.id}</h3>
+                            <span class="close" onclick="this.closest('.modal').remove()">&times;</span>
+                        </div>
+                        <div class="modal-body">
+                            <div class="management-section">
+                                <h4 class="section-title">💰 Valores da Reserva</h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label">Valor da Diária Base (R$)</label>
+                                        <input type="number" id="editDailyRate" class="form-control" step="0.01" value="${existingDailyRate}">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Taxa por Hóspede Extra (R$/dia)</label>
+                                        <input type="number" id="editExtraGuestFee" class="form-control" step="0.01" value="${existingExtraFee}">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Ajuste Manual (adicional/desconto)</label>
+                                    <input type="number" id="editManualAdjustment" class="form-control" step="0.01" placeholder="Ex: -50 (desconto) ou +100 (adicional)" value="${manualAdjustmentValue}">
+                                    <small class="form-text text-muted">Deixe em 0 para usar o cálculo automático. Qualquer valor aqui sobrescreverá o total final.</small>
+                                </div>
+                                <div class="value-breakdown" id="editValuePreview">
+                                    ${this.generateValuePreviewHTML(reservation)}
+                                </div>
+                            </div>
+
+                            <div class="management-section">
+                                <h4 class="section-title">👥 Gerenciar Hóspedes</h4>
+                                <div class="guest-list" id="editGuestList">
+                                    ${this.formatGuestListWithActions(reservation.guest)}
+                                </div>
+                                <div class="form-group" style="margin-top: 1rem;">
+                                    <label class="form-label">Adicionar Novo Hóspede</label>
+                                    <div class="autocomplete-container" style="position: relative;">
+                                        <input 
+                                            type="text" 
+                                            id="editNewGuestName" 
+                                            class="form-control" 
+                                            placeholder="Digite o nome do hóspede (mínimo 2 caracteres)" 
+                                            autocomplete="off"
+                                        >
+                                        <div id="editGuestSuggestions" class="autocomplete-suggestions" style="position: absolute; z-index: 10000;"></div>
+                                    </div>
+                                    <div class="button-group" style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
+                                        <button class="btn btn-success btn-sm" onclick="calendarSystem.addGuestToReservation(${reservation.id})">
+                                            <i class="fas fa-plus"></i> Adicionar Hóspede
+                                        </button>
+                                        <button class="btn btn-primary btn-sm" onclick="calendarSystem.openCreateGuestModal()">
+                                            <i class="fas fa-user-plus"></i> Criar Novo Hóspede
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="management-section">
+                                <h4 class="section-title">📅 Gerenciar Datas</h4>
+                                <div class="current-dates" id="editDatesList">
+                                    ${this.formatDatesList(reservation.reservedDays)}
+                                </div>
+                                <div class="form-group" style="margin-top: 1rem;">
+                                    <label class="form-label">Adicionar Data</label>
+                                    <div style="display: flex; gap: 0.5rem;">
+                                        <input type="date" id="editNewDate" class="form-control" style="flex: 1;">
+                                        <button class="btn btn-info" onclick="calendarSystem.addDateToReservation(${reservation.id})">
+                                            <i class="fas fa-calendar-plus"></i> Adicionar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-success" onclick="calendarSystem.saveReservationValues(${reservation.id})">
+                                <i class="fas fa-save"></i> Salvar Alterações
+                            </button>
+                            <button class="btn btn-danger" onclick="this.closest('.modal').remove()">Cancelar</button>
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(modal);
+                modal.style.display = 'block';
+                
+                setTimeout(() => {
+                    this.initAdvancedEditAutocomplete();
+                }, 100);
+                
+                const dailyRate = document.getElementById('editDailyRate');
+                const extraFee = document.getElementById('editExtraGuestFee');
+                const adjustment = document.getElementById('editManualAdjustment');
+                
+                const updatePreview = () => {
+                    const newDaily = parseFloat(dailyRate?.value) || 0;
+                    const newFee = parseFloat(extraFee?.value) || 0;
+                    const newAdj = parseFloat(adjustment?.value) || 0;
+                    const guestCount = reservation.guest?.length || 1;
+                    const daysCount = reservation.reservedDays?.length || 0;
+                    
+                    const extraGuests = Math.max(0, guestCount - 1);
+                    const baseTotal = newDaily * daysCount;
+                    const extraTotal = newFee * extraGuests * daysCount;
+                    const total = baseTotal + extraTotal + newAdj;
+                    
+                    const previewDiv = document.getElementById('editValuePreview');
+                    if (previewDiv) {
+                        previewDiv.innerHTML = `
+                            <div class="value-breakdown">
+                                <div class="value-breakdown-item">
+                                    <span>Diária base:</span>
+                                    <span>R$ ${newDaily.toFixed(2)} x ${daysCount} dias = R$ ${(newDaily * daysCount).toFixed(2)}</span>
+                                </div>
+                                ${extraGuests > 0 ? `
+                                    <div class="value-breakdown-item">
+                                        <span>Taxa hóspedes extras:</span>
+                                        <span>R$ ${newFee.toFixed(2)} x ${extraGuests} x ${daysCount} dias = R$ ${(newFee * extraGuests * daysCount).toFixed(2)}</span>
+                                    </div>
+                                ` : ''}
+                                ${newAdj !== 0 ? `
+                                    <div class="value-breakdown-item">
+                                        <span>Ajuste manual:</span>
+                                        <span>R$ ${newAdj > 0 ? '+' : ''}${newAdj.toFixed(2)}</span>
+                                    </div>
+                                ` : ''}
+                                <div class="value-total" style="margin-top: 12px; padding-top: 12px; border-top: 2px solid #fbd38d;">
+                                    <strong>VALOR TOTAL:</strong> R$ ${total.toFixed(2)}
+                                </div>
+                            </div>
+                        `;
+                    }
+                };
+                
+                if (dailyRate) dailyRate.addEventListener('input', updatePreview);
+                if (extraFee) extraFee.addEventListener('input', updatePreview);
+                if (adjustment) adjustment.addEventListener('input', updatePreview);
+                
+            } else {
+                throw new Error('Erro ao carregar reserva');
+            }
+        } catch (error) {
+            console.error('Erro ao abrir edição avançada:', error);
+            this.showAlert('Erro ao carregar dados da reserva', 'error');
+        }
+    }
+
+    initAdvancedEditAutocomplete() {
+        const guestInput = document.getElementById('editNewGuestName');
+        const suggestionsContainer = document.getElementById('editGuestSuggestions');
+        
+        if (!guestInput || !suggestionsContainer) {
+            console.log('Elementos de autocomplete não encontrados');
+            return;
+        }
+        
+        console.log('Inicializando autocomplete para edição avançada');
+        
+        const newGuestInput = guestInput.cloneNode(true);
+        guestInput.parentNode.replaceChild(newGuestInput, guestInput);
+        
+        newGuestInput.addEventListener('input', (e) => {
+            const query = e.target.value;
+            console.log('Buscando hóspede:', query);
+            this.searchEditGuests(query);
+        });
+        
+        newGuestInput.addEventListener('blur', () => {
+            setTimeout(() => {
+                this.hideEditGuestSuggestions();
+            }, 200);
+        });
+        
+        newGuestInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.hideEditGuestSuggestions();
+                newGuestInput.blur();
+            }
+        });
+        
+        newGuestInput.id = 'editNewGuestName';
+    }
+
+    searchEditGuests(query) {
+        const suggestionsContainer = document.getElementById('editGuestSuggestions');
+        
+        if (!query || query.length < 2) {
+            if (suggestionsContainer) {
+                suggestionsContainer.classList.remove('show');
+                suggestionsContainer.innerHTML = '';
+            }
+            return;
+        }
+        
+        const filteredGuests = this.allGuests.filter(guest => 
+            guest.name && guest.name.toLowerCase().includes(query.toLowerCase())
+        ).slice(0, 8);
+        
+        if (!suggestionsContainer) return;
+        
+        if (filteredGuests.length === 0) {
+            suggestionsContainer.innerHTML = `
+                <div class="suggestion-item no-results" style="color: #666; cursor: default;">
+                    <i class="fas fa-info-circle"></i> Nenhum hóspede encontrado
+                </div>
+            `;
+            suggestionsContainer.classList.add('show');
+        } else {
+            const suggestionsHTML = filteredGuests.map((guest, index) => `
+                <div class="suggestion-item ${index === 0 ? 'highlighted' : ''}" 
+                     data-guest-name="${this.escapeHtml(guest.name)}">
+                    <div><strong>${this.escapeHtml(guest.name)}</strong></div>
+                    <div class="suggestion-details">RG: ${guest.rg || 'N/A'} | Tel: ${guest.phone || 'N/A'}</div>
+                </div>
+            `).join('');
+            suggestionsContainer.innerHTML = suggestionsHTML;
+            suggestionsContainer.classList.add('show');
+            
+            suggestionsContainer.querySelectorAll('.suggestion-item:not(.no-results)').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const guestName = item.getAttribute('data-guest-name');
+                    const input = document.getElementById('editNewGuestName');
+                    if (input) {
+                        input.value = guestName;
+                        suggestionsContainer.classList.remove('show');
+                        suggestionsContainer.innerHTML = '';
+                    }
+                });
+            });
+        }
+    }
+
+    hideEditGuestSuggestions() {
+        const suggestionsContainer = document.getElementById('editGuestSuggestions');
+        if (suggestionsContainer) {
+            suggestionsContainer.classList.remove('show');
+            suggestionsContainer.innerHTML = '';
+        }
+    }
+
+    async addGuestToReservation(reservationId) {
+        console.log('addGuestToReservation chamado para reserva:', reservationId);
+        
+        const guestInput = document.getElementById('editNewGuestName');
+        if (!guestInput) {
+            console.error('Campo editNewGuestName não encontrado');
+            this.showAlert('Erro: Campo de nome não encontrado', 'error');
+            return;
+        }
+        
+        const guestName = guestInput.value.trim();
+        console.log('Nome do hóspede:', guestName);
+        
+        if (!guestName) {
+            this.showAlert('Digite o nome do hóspede', 'error');
+            return;
+        }
+        
+        const guestExists = this.allGuests.some(g => 
+            g.name && g.name.toLowerCase() === guestName.toLowerCase()
+        );
+        
+        console.log('Hóspede existe?', guestExists);
+        
+        if (!guestExists) {
+            const createNew = await Swal.fire({
+                title: 'Hóspede não encontrado',
+                text: `O hóspede "${guestName}" não existe. Deseja criá-lo?`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Sim, criar hóspede',
+                cancelButtonText: 'Cancelar'
+            });
+            
+            if (!createNew.isConfirmed) {
+                return;
+            }
+            
+            this.openCreateGuestModal();
+            const createGuestNameInput = document.getElementById('createGuestName');
+            if (createGuestNameInput) {
+                createGuestNameInput.value = guestName;
+            }
+            return;
+        }
+        
+        try {
+            const response = await this.makeAuthenticatedRequest(
+                `${this.baseUrl}/add-guest/${reservationId}?nameGuest=${encodeURIComponent(guestName)}`,
+                { method: 'PUT' }
+            );
+            
+            console.log('Resposta do backend:', response.status);
+            
+            if (response.ok) {
+                this.showAlert('Hóspede adicionado com sucesso!', 'success');
+                
+                if (guestInput) guestInput.value = '';
+                
+                const modal = document.getElementById('advancedEditModal');
+                if (modal) modal.remove();
+                
+                await this.manageReservation(reservationId);
+            } else {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Erro ao adicionar hóspede');
+            }
+        } catch (error) {
+            console.error('Erro ao adicionar hóspede:', error);
+            this.showAlert('Erro ao adicionar hóspede: ' + error.message, 'error');
+        }
+    }
+
+    generateValuePreviewHTML(reservation) {
+        const guestCount = reservation.guest?.length || 1;
+        const daysCount = reservation.reservedDays?.length || 0;
+        const extraGuests = Math.max(0, guestCount - 1);
+        const dailyRate = reservation.dailyRate || 0;
+        const extraGuestDailyFee = reservation.extraGuestDailyFee || 0;
+        const baseTotal = dailyRate * daysCount;
+        const extraTotal = extraGuestDailyFee * extraGuests * daysCount;
+        let total = baseTotal + extraTotal;
+        
+        if (reservation.useCustomAmount === true && reservation.customTotalAmount) {
+            total = parseFloat(reservation.customTotalAmount);
+        }
+        
+        return `
+            <div class="value-breakdown">
+                <div class="value-breakdown-item">
+                    <span>Diária base:</span>
+                    <span>R$ ${dailyRate.toFixed(2)} x ${daysCount} dias = R$ ${(dailyRate * daysCount).toFixed(2)}</span>
+                </div>
+                ${extraGuests > 0 ? `
+                    <div class="value-breakdown-item">
+                        <span>Taxa hóspedes extras:</span>
+                        <span>R$ ${extraGuestDailyFee.toFixed(2)} x ${extraGuests} x ${daysCount} dias = R$ ${(extraGuestDailyFee * extraGuests * daysCount).toFixed(2)}</span>
+                    </div>
+                ` : ''}
+                ${reservation.useCustomAmount === true && reservation.customTotalAmount ? `
+                    <div class="value-breakdown-item">
+                        <span>Valor customizado:</span>
+                        <span>R$ ${parseFloat(reservation.customTotalAmount).toFixed(2)}</span>
+                    </div>
+                ` : ''}
+                <div class="value-total" style="margin-top: 12px; padding-top: 12px; border-top: 2px solid #fbd38d;">
+                    <strong>VALOR TOTAL:</strong> R$ ${total.toFixed(2)}
+                </div>
+            </div>
+        `;
+    }
+
+    formatGuestListWithActions(guests) {
+        if (!guests || guests.length === 0) return '<p>Nenhum hóspede</p>';
+        
+        const guestArray = Array.isArray(guests) ? guests : Array.from(guests);
+        
+        return guestArray.map((guest, index) => `
+            <div class="guest-item">
+                <span><strong>${index === 0 ? '👤 Principal:' : '👥 Extra:'}</strong> ${this.escapeHtml(guest.name)}</span>
+                ${index > 0 ? `
+                    <button class="btn btn-sm btn-danger" onclick="calendarSystem.removeGuestFromReservation(${this.currentReservationId}, '${this.escapeHtml(guest.name)}')">
+                        Remover
+                    </button>
+                ` : '<span class="badge badge-primary">Hóspede Principal</span>'}
+            </div>
+        `).join('');
+    }
+
+    formatDatesList(dates) {
+        if (!dates || dates.length === 0) return '<p>Nenhuma data definida</p>';
+        
+        const datesArray = Array.isArray(dates) ? dates : Array.from(dates);
+        const sortedDates = datesArray.sort();
+        
+        return sortedDates.map(dateStr => {
+            const formattedDate = this.formatDateForDisplay(this.parseDate(dateStr));
+            return `
+                <div class="date-item">
+                    <span>📅 ${formattedDate}</span>
+                    <button class="btn btn-sm btn-danger" onclick="calendarSystem.removeDateFromReservation(${this.currentReservationId}, '${dateStr}')">
+                        ×
+                    </button>
+                </div>
+            `;
+        }).join('');
+    }
+
+    async saveReservationValues(reservationId) {
+        const dailyRate = parseFloat(document.getElementById('editDailyRate')?.value) || 0;
+        const extraGuestDailyFee = parseFloat(document.getElementById('editExtraGuestFee')?.value) || 0;
+        const manualAdjustment = parseFloat(document.getElementById('editManualAdjustment')?.value) || 0;
+        
+        const saveButton = document.querySelector('#advancedEditModal .btn-success');
+        if (saveButton) {
+            saveButton.disabled = true;
+            saveButton.innerHTML = '<div class="loading loading-small"></div> Salvando...';
+        }
+        
+        try {
+            const response = await this.makeAuthenticatedRequest(
+                `${this.baseUrl}/update-values-with-adjustment/${reservationId}`,
+                {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        dailyRate: dailyRate,
+                        extraGuestDailyFee: extraGuestDailyFee,
+                        manualAdjustment: manualAdjustment
+                    })
+                }
+            );
+            
+            if (response.ok) {
+                const updatedReservation = await response.json();
+                this.showAlert('Valores atualizados com sucesso!', 'success');
+                
+                const modal = document.getElementById('advancedEditModal');
+                if (modal) modal.remove();
+                
+                await this.loadReservations();
+                await this.manageReservation(reservationId);
+                
+            } else {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Erro ao atualizar valores');
+            }
+        } catch (error) {
+            console.error('Erro ao salvar valores:', error);
+            this.showAlert('Erro ao salvar alterações: ' + error.message, 'error');
+        } finally {
+            if (saveButton) {
+                saveButton.disabled = false;
+                saveButton.innerHTML = '<i class="fas fa-save"></i> Salvar Alterações';
+            }
+        }
+    }
+
+    async removeGuestFromReservation(reservationId, guestName) {
+        if (!confirm(`Remover "${guestName}" da reserva?`)) return;
+        
+        try {
+            const response = await this.makeAuthenticatedRequest(
+                `${this.baseUrl}/remove-guest/${reservationId}?nameGuest=${encodeURIComponent(guestName)}`,
+                { method: 'PUT' }
+            );
+            
+            if (response.ok) {
+                this.showAlert('Hóspede removido com sucesso!', 'success');
+                const modal = document.getElementById('advancedEditModal');
+                if (modal) modal.remove();
+                await this.openAdvancedEditModal(reservationId);
+            } else {
+                throw new Error('Erro ao remover hóspede');
+            }
+        } catch (error) {
+            console.error('Erro ao remover hóspede:', error);
+            this.showAlert('Erro ao remover hóspede', 'error');
+        }
+    }
+
+    async addDateToReservation(reservationId) {
+        const newDate = document.getElementById('editNewDate')?.value;
+        if (!newDate) {
+            this.showAlert('Selecione uma data', 'error');
+            return;
+        }
+        
+        try {
+            const response = await this.makeAuthenticatedRequest(
+                `${this.baseUrl}/${reservationId}/add-date`,
+                {
+                    method: 'PUT',
+                    body: JSON.stringify(newDate)
+                }
+            );
+            
+            if (response.ok) {
+                this.showAlert('Data adicionada com sucesso!', 'success');
+                const modal = document.getElementById('advancedEditModal');
+                if (modal) modal.remove();
+                await this.openAdvancedEditModal(reservationId);
+            } else {
+                throw new Error('Erro ao adicionar data');
+            }
+        } catch (error) {
+            console.error('Erro ao adicionar data:', error);
+            this.showAlert('Erro ao adicionar data', 'error');
+        }
+    }
+
+    async removeDateFromReservation(reservationId, dateToRemove) {
+        if (!confirm(`Remover a data ${dateToRemove}?`)) return;
+        
+        try {
+            const response = await this.makeAuthenticatedRequest(
+                `${this.baseUrl}/remove-date/${reservationId}?date=${dateToRemove}`,
+                { method: 'PUT' }
+            );
+            
+            if (response.ok) {
+                this.showAlert('Data removida com sucesso!', 'success');
+                const modal = document.getElementById('advancedEditModal');
+                if (modal) modal.remove();
+                await this.openAdvancedEditModal(reservationId);
+            } else {
+                throw new Error('Erro ao remover data');
+            }
+        } catch (error) {
+            console.error('Erro ao remover data:', error);
+            this.showAlert('Erro ao remover data', 'error');
         }
     }
 
@@ -2538,17 +3121,24 @@ class CalendarSystem {
     }
 
     showAlert(message, type) {
-        document.getElementById('alertError').style.display = 'none';
-        document.getElementById('alertSuccess').style.display = 'none';
+        const alertError = document.getElementById('alertError');
+        const alertSuccess = document.getElementById('alertSuccess');
+        
+        if (alertError) alertError.style.display = 'none';
+        if (alertSuccess) alertSuccess.style.display = 'none';
         
         const alertElement = document.getElementById(`alert${type.charAt(0).toUpperCase() + type.slice(1)}`);
-        alertElement.textContent = message;
-        alertElement.style.display = 'block';
-        
-        if (type === 'success') {
-            setTimeout(() => {
-                alertElement.style.display = 'none';
-            }, 5000);
+        if (alertElement) {
+            alertElement.textContent = message;
+            alertElement.style.display = 'block';
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    alertElement.style.display = 'none';
+                }, 5000);
+            }
+        } else {
+            console.log(`${type.toUpperCase()}: ${message}`);
         }
     }
 }
@@ -2567,7 +3157,7 @@ window.onclick = function(event) {
     
     if (window.calendarSystem && window.calendarSystem.expandedDate) {
         const calendar = document.getElementById('calendar');
-        if (!calendar.contains(event.target)) {
+        if (calendar && !calendar.contains(event.target)) {
             window.calendarSystem.expandedDate = null;
             window.calendarSystem.hideReservationsList();
             window.calendarSystem.loadCalendar();
@@ -2581,11 +3171,11 @@ document.addEventListener('click', (e) => {
     const roomInput = document.getElementById('roomNumber');
     const roomSuggestions = document.getElementById('roomSuggestions');
     
-    if (!guestInput.contains(e.target) && !guestSuggestions.contains(e.target)) {
+    if (guestInput && !guestInput.contains(e.target) && guestSuggestions && !guestSuggestions.contains(e.target)) {
         guestSuggestions.classList.remove('show');
     }
     
-    if (!roomInput.contains(e.target) && !roomSuggestions.contains(e.target)) {
+    if (roomInput && !roomInput.contains(e.target) && roomSuggestions && !roomSuggestions.contains(e.target)) {
         roomSuggestions.classList.remove('show');
     }
 });

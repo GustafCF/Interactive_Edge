@@ -101,6 +101,7 @@ class HotelSystem {
                 this.updateStats(reserves, rooms);
                 this.displayActiveReserves(reserves);
                 this.displayAvailableRooms(rooms);
+                this.displayOccupiedRooms(rooms);
                 this.displayUpcomingCheckins(reserves);
                 this.displayTodayMovements(reserves);
             } else {
@@ -189,6 +190,31 @@ class HotelSystem {
         container.innerHTML = html;
     }
 
+    displayOccupiedRooms(rooms) {
+        const container = document.getElementById('occupiedRooms');
+        if (!container) return;
+        
+        const occupiedRooms = rooms.filter(room => room.roomStatus === 'OCCUPIED');
+
+        if (occupiedRooms.length === 0) {
+            container.innerHTML = '<p>Nenhum quarto ocupado</p>';
+            return;
+        }
+
+        const html = occupiedRooms.map(room => `
+            <div class="today-movement-card">
+                <strong>Quarto ${room.number}</strong><br>
+                <span class="badge badge-${room.exclusiveRoom ? 'exclusive' : 'shared'}">
+                    ${room.exclusiveRoom ? 'Exclusivo' : 'Compartilhado'}
+                </span>
+                ${room.price ? `<br><strong>Preço:</strong> R$ ${parseFloat(room.price).toFixed(2)}` : ''}
+                ${room.capacity ? `<br><strong>Capacidade:</strong> ${room.capacity} pessoas` : ''}
+            </div>
+        `).join('');
+
+        container.innerHTML = html;
+    }
+
     displayUpcomingCheckins(reserves) {
         const container = document.getElementById('upcomingCheckins');
         if (!container) return;
@@ -202,10 +228,10 @@ class HotelSystem {
         const upcomingReserves = reserves.filter(reserve => {
             if (!reserve.reservedDays || reserve.reservedDays.length === 0) return false;
             if (reserve.reserveStatus === 'CANCELLED') return false;
-            if (reserve.checkIn && reserve.checkIn.length > 0) return false; // Já fez check-in
+            if (reserve.checkIn && reserve.checkIn.length > 0) return false;
             
             const periodInfo = this.formatCheckInOutDates(reserve);
-            const checkInDate = this.parseDate(periodInfo.checkIn);
+            const checkInDate = this.parseDate(periodInfo.checkInFormatted);
             
             return checkInDate >= today && checkInDate <= nextWeek;
         });
@@ -239,9 +265,9 @@ class HotelSystem {
         
         if (!checkinsContainer || !checkoutsContainer) return;
 
-        // Formatar data de hoje
         const today = new Date();
-        const todayFormatted = today.toISOString().split('T')[0];
+        today.setHours(0, 0, 0, 0);
+        const todayFormatted = this.formatDateForInput(today);
         const todayFormattedBR = today.toLocaleDateString('pt-BR');
         
         if (todayDateElement) {
@@ -255,18 +281,19 @@ class HotelSystem {
             if (!reserve.reservedDays || reserve.reservedDays.length === 0) return;
             if (reserve.reserveStatus === 'CANCELLED') return;
 
-            const periodInfo = this.formatCheckInOutDates(reserve);
+            const periodInfo = this.calculateCheckinCheckoutDates(reserve.reservedDays);
             
-            // Verificar check-ins de hoje (primeira data é hoje)
-            if (periodInfo.checkInFormatted === todayFormatted) {
+            // Check-in: data do primeiro dia da reserva é hoje
+            if (periodInfo.checkInDate === todayFormatted && (!reserve.checkIn || reserve.checkIn.length === 0)) {
                 todayCheckins.push({
                     reserve,
                     periodInfo
                 });
             }
 
-            // Verificar check-outs de hoje (última data é hoje)
-            if (periodInfo.checkOutFormatted === todayFormatted) {
+            // Check-out: data do dia seguinte ao último dia da reserva é hoje
+            // CORREÇÃO: O checkout é no dia seguinte ao último dia da reserva
+            if (periodInfo.checkOutDate === todayFormatted && (!reserve.checkOut || reserve.checkOut.length === 0)) {
                 todayCheckouts.push({
                     reserve,
                     periodInfo
@@ -279,7 +306,6 @@ class HotelSystem {
             checkinsContainer.innerHTML = '<p>Nenhum check-in para hoje</p>';
         } else {
             const checkinsHtml = todayCheckins.map(item => {
-                const hasCheckedIn = item.reserve.checkIn && item.reserve.checkIn.length > 0;
                 return `
                     <div class="today-movement-card today-checkin">
                         <strong>Reserva #${item.reserve.id}</strong><br>
@@ -287,16 +313,11 @@ class HotelSystem {
                         <strong>Quarto:</strong> ${item.reserve.rooms && item.reserve.rooms.length > 0 ? item.reserve.rooms[0].number : 'N/A'}<br>
                         <strong>Período:</strong> ${item.periodInfo.period}<br>
                         <strong>Noites:</strong> ${item.periodInfo.nights}<br>
-                        <strong>Status:</strong> <span class="badge ${hasCheckedIn ? 'badge-checked-in' : 'badge-confirmed'}">
-                            ${hasCheckedIn ? 'CHECK-IN REALIZADO' : 'CHECK-IN HOJE'}
-                        </span>
-                        ${!hasCheckedIn ? `
-                            <div class="movement-actions">
-                                <button class="btn btn-sm btn-success" onclick="hotelSystem.processCheckin(${item.reserve.id})">
-                                    ✅ Confirmar Check-in
-                                </button>
-                            </div>
-                        ` : ''}
+                        <div class="movement-actions">
+                            <button class="btn btn-sm btn-success" onclick="hotelSystem.processCheckin(${item.reserve.id})">
+                                ✅ Confirmar Check-in
+                            </button>
+                        </div>
                     </div>
                 `;
             }).join('');
@@ -308,7 +329,6 @@ class HotelSystem {
             checkoutsContainer.innerHTML = '<p>Nenhum check-out para hoje</p>';
         } else {
             const checkoutsHtml = todayCheckouts.map(item => {
-                const hasCheckedOut = item.reserve.checkOut && item.reserve.checkOut.length > 0;
                 return `
                     <div class="today-movement-card today-checkout">
                         <strong>Reserva #${item.reserve.id}</strong><br>
@@ -316,16 +336,11 @@ class HotelSystem {
                         <strong>Quarto:</strong> ${item.reserve.rooms && item.reserve.rooms.length > 0 ? item.reserve.rooms[0].number : 'N/A'}<br>
                         <strong>Período:</strong> ${item.periodInfo.period}<br>
                         <strong>Noites:</strong> ${item.periodInfo.nights}<br>
-                        <strong>Status:</strong> <span class="badge ${hasCheckedOut ? 'badge-checked-out' : 'badge-busy'}">
-                            ${hasCheckedOut ? 'CHECK-OUT REALIZADO' : 'CHECK-OUT HOJE'}
-                        </span>
-                        ${!hasCheckedOut ? `
-                            <div class="movement-actions">
-                                <button class="btn btn-sm btn-primary" onclick="hotelSystem.processCheckout(${item.reserve.id})">
-                                    🚪 Processar Check-out
-                                </button>
-                            </div>
-                        ` : ''}
+                        <div class="movement-actions">
+                            <button class="btn btn-sm btn-primary" onclick="hotelSystem.processCheckout(${item.reserve.id})">
+                                🚪 Processar Check-out
+                            </button>
+                        </div>
                     </div>
                 `;
             }).join('');
@@ -333,20 +348,21 @@ class HotelSystem {
         }
     }
 
-    formatCheckInOutDates(reservation) {
-        if (!reservation.reservedDays || reservation.reservedDays.length === 0) {
+    // CORREÇÃO PRINCIPAL: Função que calcula corretamente as datas de check-in e check-out
+    calculateCheckinCheckoutDates(reservedDays) {
+        if (!reservedDays || reservedDays.length === 0) {
             return { 
                 checkIn: 'N/A', 
                 checkOut: 'N/A', 
                 period: 'N/A',
                 nights: 0,
-                checkInFormatted: null,
-                checkOutFormatted: null
+                checkInDate: null,
+                checkOutDate: null
             };
         }
 
         try {
-            const dates = Array.from(reservation.reservedDays)
+            const dates = Array.from(reservedDays)
                 .map(date => this.parseDate(date))
                 .filter(date => !isNaN(date))
                 .sort((a, b) => a - b);
@@ -357,33 +373,43 @@ class HotelSystem {
                     checkOut: 'N/A', 
                     period: 'N/A',
                     nights: 0,
-                    checkInFormatted: null,
-                    checkOutFormatted: null
+                    checkInDate: null,
+                    checkOutDate: null
                 };
             }
 
             const checkIn = dates[0];
-            const checkOut = dates[dates.length - 1];
+            // CORREÇÃO: Check-out é o dia seguinte ao último dia da reserva
+            const lastDay = dates[dates.length - 1];
+            const checkOut = new Date(lastDay);
+            checkOut.setDate(checkOut.getDate() + 1);
+            
+            const checkOutDate = this.formatDateForInput(checkOut);
+            const checkInDate = this.formatDateForInput(checkIn);
             
             return {
                 checkIn: this.formatDate(checkIn),
                 checkOut: this.formatDate(checkOut),
                 period: `${this.formatDate(checkIn)} a ${this.formatDate(checkOut)}`,
                 nights: dates.length,
-                checkInFormatted: this.formatDateForInput(checkIn),
-                checkOutFormatted: this.formatDateForInput(checkOut)
+                checkInDate: checkInDate,
+                checkOutDate: checkOutDate
             };
         } catch (error) {
-            console.error('Erro ao formatar datas de check-in/out:', error);
+            console.error('Erro ao calcular datas de check-in/out:', error);
             return { 
                 checkIn: 'Erro', 
                 checkOut: 'Erro', 
                 period: 'Erro',
                 nights: 0,
-                checkInFormatted: null,
-                checkOutFormatted: null
+                checkInDate: null,
+                checkOutDate: null
             };
         }
+    }
+
+    formatCheckInOutDates(reservation) {
+        return this.calculateCheckinCheckoutDates(reservation.reservedDays);
     }
 
     parseDate(dateString) {
@@ -398,7 +424,7 @@ class HotelSystem {
         }
         
         console.warn('Data inválida:', dateString);
-        return new Date();
+        return new Date(NaN);
     }
 
     formatDate(date) {
@@ -485,7 +511,9 @@ class HotelSystem {
         alert.textContent = message;
 
         const container = document.querySelector('.container');
-        container.insertBefore(alert, container.firstChild);
+        if (container) {
+            container.insertBefore(alert, container.firstChild);
+        }
 
         setTimeout(() => {
             alert.remove();

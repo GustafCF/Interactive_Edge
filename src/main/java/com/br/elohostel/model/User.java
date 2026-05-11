@@ -32,11 +32,28 @@ public class User implements Serializable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private String name;
-    // @Email
     @Column(unique = true)
     private String email;
     private String password;
     private String phone;
+    
+    @Column(length = 100)
+    private String establishmentName;
+    
+    @Column(length = 255)
+    private String establishmentAddress;
+    
+    @Column(length = 20)
+    private String establishmentPhone;
+    
+    @Column(length = 100)
+    private String establishmentResponsible;
+    
+    @Column(length = 500)
+    private String establishmentLogo;
+    
+    @Column(length = 500)
+    private String establishmentWelcomeMessage;
 
     @ManyToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     @JoinTable(
@@ -63,6 +80,7 @@ public class User implements Serializable {
         this.phone = phone;
     }
 
+    // Getters e Setters existentes...
     public Long getId() {
         return id;
     }
@@ -122,6 +140,55 @@ public class User implements Serializable {
     public void setPasswordResetToken(PasswordResetToken passwordResetToken) {
         this.passwordResetToken = passwordResetToken;
     }
+    
+    // NOVOS GETTERS E SETTERS
+    public String getEstablishmentName() {
+        return establishmentName;
+    }
+
+    public void setEstablishmentName(String establishmentName) {
+        this.establishmentName = establishmentName;
+    }
+
+    public String getEstablishmentAddress() {
+        return establishmentAddress;
+    }
+
+    public void setEstablishmentAddress(String establishmentAddress) {
+        this.establishmentAddress = establishmentAddress;
+    }
+
+    public String getEstablishmentPhone() {
+        return establishmentPhone;
+    }
+
+    public void setEstablishmentPhone(String establishmentPhone) {
+        this.establishmentPhone = establishmentPhone;
+    }
+
+    public String getEstablishmentResponsible() {
+        return establishmentResponsible;
+    }
+
+    public void setEstablishmentResponsible(String establishmentResponsible) {
+        this.establishmentResponsible = establishmentResponsible;
+    }
+
+    public String getEstablishmentLogo() {
+        return establishmentLogo;
+    }
+
+    public void setEstablishmentLogo(String establishmentLogo) {
+        this.establishmentLogo = establishmentLogo;
+    }
+
+    public String getEstablishmentWelcomeMessage() {
+        return establishmentWelcomeMessage;
+    }
+
+    public void setEstablishmentWelcomeMessage(String establishmentWelcomeMessage) {
+        this.establishmentWelcomeMessage = establishmentWelcomeMessage;
+    }
 
     public boolean loginValidation(LoginRequestDTO loginRequestDTO, BCryptPasswordEncoder bCryptPasswordEncoder) {
         return bCryptPasswordEncoder.matches(loginRequestDTO.password(), this.password);
@@ -150,5 +217,5 @@ public class User implements Serializable {
         } else if (!id.equals(other.id))
             return false;
         return true;
-    }
+    } 
 }

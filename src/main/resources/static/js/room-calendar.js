@@ -1,7 +1,6 @@
 class RoomCalendar {
     constructor() {
         this.API_BASE_URL = '';
-        // this.API_BASE_URL = 'http://192.168.1.100:8080';
         this.currentDate = new Date();
         this.currentRoom = null;
         this.roomReservations = [];
@@ -13,6 +12,8 @@ class RoomCalendar {
         this.currentAutocompleteIndex = -1;
         this.guestAutocompleteElement = null;
         this.isCreatingNewGuest = false;
+        this.currentAirbnbConnection = null;
+        this.currentExportUrl = null;
         
         this.init();
     }
@@ -25,6 +26,7 @@ class RoomCalendar {
         this.loadUserInfo();
         await this.testApiResponse();
         this.setupAutocomplete();
+        await this.setupAirbnbIntegration();
     }
 
     getToken() {
@@ -252,7 +254,7 @@ class RoomCalendar {
         const searchLower = searchTerm.toLowerCase();
         const filteredGuests = this.allGuests.filter(guest => 
             guest.name && guest.name.toLowerCase().includes(searchLower)
-        ).slice(0, 10); // Limitar a 10 resultados
+        ).slice(0, 10);
         
         if (filteredGuests.length === 0) {
             this.showNoResultsMessage(searchTerm);
@@ -582,32 +584,18 @@ class RoomCalendar {
 
     async loadReservations() {
         const calendarLoading = document.getElementById('calendarLoading');
-
-        calendarLoading.style.display = 'flex';
+        if (calendarLoading) calendarLoading.style.display = 'flex';
 
         try {
             this.allReservations = await this.apiRequest(`${this.API_BASE_URL}/reserve/all`) || [];
+            
             const currentRoomId = Number(this.currentRoom.id);
             const currentRoomNumber = String(this.currentRoom.number);
             
-            console.log('Parâmetros para filtro:', {
-                currentRoomId,
-                currentRoomNumber,
-                currentRoomIdType: typeof currentRoomId,
-                currentRoomNumberType: typeof currentRoomNumber,
-                currentRoomOriginal: this.currentRoom
-            });
-            
             this.roomReservations = this.allReservations.filter(reserve => {
-                if (reserve.reserveStatus === 'CANCELLED') {
-                    console.log(`Reserva ${reserve.id} ignorada (CANCELLED)`);
-                    return false;
-                }
+                if (reserve.reserveStatus === 'CANCELLED') return false;
+                if (!reserve.rooms) return false;
                 
-                if (!reserve.rooms) {
-                    console.log(`Reserva ${reserve.id} não tem quartos`);
-                    return false;
-                }
                 let roomsArray = [];
                 if (Array.isArray(reserve.rooms)) {
                     roomsArray = reserve.rooms;
@@ -622,106 +610,25 @@ class RoomCalendar {
                 }
                 
                 const hasThisRoom = roomsArray.some(room => {
-                    if (!room || typeof room !== 'object') {
-                        console.log(`Reserva ${reserve.id} - Quarto inválido:`, room);
-                        return false;
-                    }
-                
+                    if (!room || typeof room !== 'object') return false;
                     const roomId = room.id;
-                    const roomNumber = room.number || room.roomNumber || room.num;
-                    const roomIdMatch = String(roomId) === String(currentRoomId);
-                    const roomNumberMatch = String(roomNumber) === currentRoomNumber;
-                    
-                    const match = roomIdMatch || roomNumberMatch;
-                    return match;
+                    const roomNumber = room.number || room.roomNumber;
+                    return String(roomId) === String(currentRoomId) || 
+                           String(roomNumber) === currentRoomNumber;
                 });
                 
-                console.log(`Reserva ${reserve.id} pertence ao quarto ${this.currentRoom.number}? ${hasThisRoom}`);
                 return hasThisRoom;
             });
-            this.debugRoomReservations();
             
             this.renderCalendar();
+            this.renderReservationsList();
+            
         } catch (error) {
             console.error('Error loading reservations:', error);
             this.showAlert('Erro ao carregar reservas', 'error');
         }
 
-        calendarLoading.style.display = 'none';
-    }
-
-    debugRoomReservations() {
-        if (this.allReservations.length > 0) {
-            this.allReservations.forEach((reserve, index) => {
-                if (reserve.rooms) {
-                    let roomsArray = [];
-                    if (Array.isArray(reserve.rooms)) {
-                        roomsArray = reserve.rooms;
-                    } else if (reserve.rooms instanceof Set) {
-                        roomsArray = Array.from(reserve.rooms);
-                    } else if (typeof reserve.rooms === 'object') {
-                        roomsArray = Object.values(reserve.rooms);
-                    }
-                    
-                    console.log('Quartos encontrados:', roomsArray.length);
-                    roomsArray.forEach((room, roomIndex) => {
-                        if (room && typeof room === 'object') {
-                            console.log(`  Quarto ${roomIndex + 1}:`, {
-                                id: room.id,
-                                number: room.number,
-                                roomType: room.roomType,
-                                hasNumber: !!room.number,
-                                numberType: typeof room.number
-                            });
-                        } else {
-                            console.log(`  Quarto ${roomIndex + 1}:`, room);
-                        }
-                    });
-                } else {
-                    console.log('Quartos: null ou undefined');
-                }
-                
-                // Mostrar hóspedes
-                if (reserve.guest) {
-                    let guestsArray = [];
-                    if (Array.isArray(reserve.guest)) {
-                        guestsArray = reserve.guest;
-                    } else if (reserve.guest instanceof Set) {
-                        guestsArray = Array.from(reserve.guest);
-                    }
-                    console.log('Hóspedes:', guestsArray.map(g => g ? g.name : 'null'));
-                }
-                
-                // Mostrar datas
-                if (reserve.reservedDays) {
-                    let datesArray = [];
-                    if (Array.isArray(reserve.reservedDays)) {
-                        datesArray = reserve.reservedDays;
-                    } else if (reserve.reservedDays instanceof Set) {
-                        datesArray = Array.from(reserve.reservedDays);
-                    }
-                    console.log('Datas reservadas:', datesArray.sort());
-                }
-            });
-        }
-        
-        if (this.roomReservations.length > 0) {
-            console.log('\n=== RESERVAS FILTRADAS DETALHADAS ===');
-            this.roomReservations.forEach((reserve, index) => {
-                console.log(`\nReserva filtrada ${index + 1} - ID: ${reserve.id}`);
-                console.log('Status:', reserve.reserveStatus);
-                
-                if (reserve.reservedDays) {
-                    let datesArray = [];
-                    if (Array.isArray(reserve.reservedDays)) {
-                        datesArray = reserve.reservedDays;
-                    } else if (reserve.reservedDays instanceof Set) {
-                        datesArray = Array.from(reserve.reservedDays);
-                    }
-                    console.log('Datas:', datesArray);
-                }
-            });
-        }
+        if (calendarLoading) calendarLoading.style.display = 'none';
     }
 
     renderCalendar() {
@@ -754,10 +661,6 @@ class RoomCalendar {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        console.log(`=== RENDERIZANDO CALENDÁRIO ===`);
-        console.log('Mês:', monthNames[month], year);
-        console.log('Reservas para renderizar:', this.roomReservations.length);
-
         for (let day = 1; day <= lastDay.getDate(); day++) {
             const dayDate = new Date(year, month, day);
             const dayElement = document.createElement('div');
@@ -775,10 +678,8 @@ class RoomCalendar {
             const dateString = this.formatDate(dayDate);
             const isSelected = this.selectedDates.has(dateString);
 
-            // Aplicar classes CSS
             if (reservationForDay) {
                 dayElement.classList.add('reserved');
-                console.log(`Dia ${dateString}: RESERVADO - ${reservationForDay.guestNames.join(', ')}`);
             } else if (!dayElement.classList.contains('past')) {
                 dayElement.classList.add('available');
             }
@@ -796,7 +697,6 @@ class RoomCalendar {
                 const reservationInfo = document.createElement('div');
                 reservationInfo.className = 'reservation-info';
                 
-                // Mostrar nomes dos hóspedes (até 2)
                 reservationForDay.guestNames.slice(0, 2).forEach(guestName => {
                     const guestElement = document.createElement('div');
                     guestElement.className = 'guest-name';
@@ -806,7 +706,6 @@ class RoomCalendar {
                     reservationInfo.appendChild(guestElement);
                 });
 
-                // Indicador de mais hóspedes
                 if (reservationForDay.guestNames.length > 2) {
                     const moreElement = document.createElement('div');
                     moreElement.className = 'more-guests';
@@ -815,7 +714,6 @@ class RoomCalendar {
                     reservationInfo.appendChild(moreElement);
                 }
 
-                // Status da reserva
                 const status = document.createElement('div');
                 status.className = `reservation-status status-${reservationForDay.status.toLowerCase()}`;
                 
@@ -831,7 +729,6 @@ class RoomCalendar {
 
                 dayElement.appendChild(reservationInfo);
                 
-                // Adicionar evento para ver detalhes
                 dayElement.addEventListener('click', (e) => {
                     e.stopPropagation();
                     if (reservationForDay.reservationId) {
@@ -855,14 +752,9 @@ class RoomCalendar {
     getReservationForDate(date) {
         const dateString = this.formatDate(date);
         
-        // Procurar reservas que incluam esta data
         for (const reservation of this.roomReservations) {
-            // Verificar se a reserva tem dias reservados
-            if (!reservation.reservedDays) {
-                continue;
-            }
+            if (!reservation.reservedDays) continue;
             
-            // Converter Set para Array se necessário
             let datesArray = [];
             if (Array.isArray(reservation.reservedDays)) {
                 datesArray = reservation.reservedDays;
@@ -870,19 +762,15 @@ class RoomCalendar {
                 datesArray = Array.from(reservation.reservedDays);
             }
             
-            // Verificar se a data está na lista de dias reservados
             const isReserved = datesArray.some(reservedDate => {
-                // Comparar strings de data (YYYY-MM-DD)
                 const reservedDateStr = reservedDate.substring(0, 10);
                 return reservedDateStr === dateString;
             });
             
             if (isReserved) {
-                // Coletar nomes dos hóspedes
                 const guestNames = [];
                 
                 if (reservation.guest) {
-                    // Converter Set para Array se necessário
                     let guestsArray = [];
                     if (Array.isArray(reservation.guest)) {
                         guestsArray = reservation.guest;
@@ -897,7 +785,6 @@ class RoomCalendar {
                     });
                 }
                 
-                // Se não encontrar nomes, usar um padrão
                 if (guestNames.length === 0) {
                     guestNames.push(`Reserva #${reservation.id}`);
                 }
@@ -993,6 +880,8 @@ class RoomCalendar {
 
     renderReservationsList() {
         const reservationsList = document.getElementById('reservationsList');
+        if (!reservationsList) return;
+        
         reservationsList.innerHTML = '';
 
         if (this.roomReservations.length === 0) {
@@ -1161,7 +1050,7 @@ class RoomCalendar {
         this.selectedDates.clear();
         this.updateSelectedDatesDisplay();
         this.renderCalendar();
-        this.clearGuestSelection(); // Limpar seleção do hóspede
+        this.clearGuestSelection();
     }
 
     validateReservationForm() {
@@ -1185,7 +1074,6 @@ class RoomCalendar {
             guestNameError.textContent = 'Nome deve ter pelo menos 3 caracteres';
             isValid = false;
         } else {
-            // Verificar se o hóspede existe na lista
             const guestExists = this.allGuests.some(g => 
                 g.name && g.name.toLowerCase() === guestName.toLowerCase()
             );
@@ -1225,22 +1113,17 @@ class RoomCalendar {
                 roomNumber: this.currentRoom.number
             };
             
-            console.log('📤 ENVIANDO DADOS PARA CRIAR RESERVA:');
-            console.log('Dados:', reservationData);
-            console.log('Endpoint:', `${this.API_BASE_URL}/reserve/insert`);
+            console.log('📤 ENVIANDO DADOS PARA CRIAR RESERVA:', reservationData);
             
             const response = await this.apiRequest(`${this.API_BASE_URL}/reserve/insert`, {
                 method: 'POST',
                 body: JSON.stringify(reservationData)
             });
             
-            console.log('📥 RESPOSTA DA API:', response);
-            
             if (response) {
                 this.showAlert('Reserva criada com sucesso!', 'success');
                 this.closeReservationForm();
                 
-                // Recarregar dados com delay para dar tempo para o backend processar
                 setTimeout(() => {
                     console.log('Recarregando reservas após criação...');
                     this.loadReservations();
@@ -1504,7 +1387,7 @@ class RoomCalendar {
             const sortedDates = dates.sort();
 
             return sortedDates.map(date => {
-                const dateStr = date.substring(0, 10); // Pega apenas YYYY-MM-DD
+                const dateStr = date.substring(0, 10);
                 const [year, month, day] = dateStr.split('-');
                 const parsedDate = new Date(year, month - 1, day);
                 const formattedDate = parsedDate.toLocaleDateString('pt-BR', {
@@ -1570,7 +1453,7 @@ class RoomCalendar {
         const modal = document.getElementById(modalId);
         if (modal) {
             modal.style.display = 'block';
-            document.body.style.overflow = 'hidden'; // Prevenir scroll
+            document.body.style.overflow = 'hidden';
         }
     }
 
@@ -1578,9 +1461,8 @@ class RoomCalendar {
         const modal = document.getElementById(modalId);
         if (modal) {
             modal.style.display = 'none';
-            document.body.style.overflow = 'auto'; // Restaurar scroll
+            document.body.style.overflow = 'auto';
             
-            // Limpar formulário do modal de criação de hóspede
             if (modalId === 'createGuestModal') {
                 document.getElementById('createGuestForm').reset();
                 this.isCreatingNewGuest = false;
@@ -1688,7 +1570,6 @@ class RoomCalendar {
             }
         });
 
-        // Modals
         document.getElementById('closeManageModal').addEventListener('click', () => {
             this.closeModal('manageModal');
         });
@@ -1711,7 +1592,6 @@ class RoomCalendar {
             this.cancelReservationById();
         });
 
-        // Modal de criação de hóspede
         document.getElementById('closeCreateGuestModal').addEventListener('click', () => {
             this.closeCreateGuestModal();
         });
@@ -1725,7 +1605,6 @@ class RoomCalendar {
             this.createNewGuest();
         });
 
-        // Fechar modals ao clicar fora
         window.addEventListener('click', (event) => {
             const modals = document.querySelectorAll('.modal');
             modals.forEach(modal => {
@@ -1744,7 +1623,6 @@ class RoomCalendar {
             });
         });
 
-        // Fechar modals com ESC
         window.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') {
                 const modals = document.querySelectorAll('.modal');
@@ -1765,12 +1643,374 @@ class RoomCalendar {
             }
         });
 
-        // Fechar autocomplete quando o usuário rolar a página
         window.addEventListener('scroll', () => {
-            if (this.guestAutocompleteElement.style.display === 'block') {
+            if (this.guestAutocompleteElement && this.guestAutocompleteElement.style.display === 'block') {
                 this.hideAutocomplete();
             }
         });
+    }
+
+    // ==================== AIRBNB INTEGRATION METHODS ====================
+
+    async setupAirbnbIntegration() {
+        const toggleBtn = document.getElementById('toggleAirbnbPanelBtn');
+        const airbnbPanel = document.getElementById('airbnbPanel');
+        const connectionForm = document.getElementById('airbnbConnectionForm');
+        const disconnectBtn = document.getElementById('disconnectAirbnbBtn');
+        const manualSyncBtn = document.getElementById('manualSyncBtn');
+        const viewExportUrlBtn = document.getElementById('viewExportUrlBtn');
+        const copyExportUrlBtn = document.getElementById('copyExportUrlBtn');
+        const closeExportModal = document.getElementById('closeExportUrlModal');
+        const exportUrlModal = document.getElementById('exportUrlModal');
+
+        if (toggleBtn && airbnbPanel) {
+            toggleBtn.addEventListener('click', () => {
+                const isVisible = airbnbPanel.style.display !== 'none';
+                airbnbPanel.style.display = isVisible ? 'none' : 'block';
+                toggleBtn.innerHTML = isVisible ? 
+                    '<i class="fas fa-plug"></i> Conectar Airbnb' : 
+                    '<i class="fas fa-times"></i> Fechar';
+                
+                if (!isVisible) {
+                    this.loadAirbnbConnection();
+                }
+            });
+        }
+
+        if (connectionForm) {
+            connectionForm.addEventListener('submit', (e) => this.connectAirbnb(e));
+        }
+
+        if (disconnectBtn) {
+            disconnectBtn.addEventListener('click', () => this.disconnectAirbnb());
+        }
+
+        if (manualSyncBtn) {
+            manualSyncBtn.addEventListener('click', () => this.manualAirbnbSync());
+        }
+
+        if (viewExportUrlBtn) {
+            viewExportUrlBtn.addEventListener('click', () => this.showExportUrl());
+        }
+
+        if (copyExportUrlBtn) {
+            copyExportUrlBtn.addEventListener('click', () => this.copyExportUrl());
+        }
+
+        if (closeExportModal) {
+            closeExportModal.addEventListener('click', () => this.closeModal('exportUrlModal'));
+        }
+
+        window.addEventListener('click', (event) => {
+            if (event.target === exportUrlModal) {
+                this.closeModal('exportUrlModal');
+            }
+        });
+
+        await this.loadAirbnbConnection();
+    }
+
+    async loadAirbnbConnection() {
+        try {
+            const connections = await this.apiRequest(`${this.API_BASE_URL}/airbnb/connections`);
+            
+            const roomConnection = connections?.find(conn => {
+                return conn.roomNumber === this.currentRoom?.number || 
+                       conn.room?.number === this.currentRoom?.number ||
+                       conn.room?.id === this.currentRoom?.id;
+            });
+            
+            if (roomConnection) {
+                this.showActiveConnection(roomConnection);
+                this.updateConnectionStatus(true, roomConnection.propertyName);
+                this.currentAirbnbConnection = roomConnection;
+            } else {
+                this.showNoConnection();
+                this.updateConnectionStatus(false);
+                this.currentAirbnbConnection = null;
+            }
+            
+            return roomConnection;
+            
+        } catch (error) {
+            console.error('Erro ao carregar conexão Airbnb:', error);
+            this.updateConnectionStatus(false);
+            return null;
+        }
+    }
+
+    updateConnectionStatus(isConnected, propertyName = '') {
+        const statusDot = document.getElementById('connectionStatusDot');
+        const statusText = document.getElementById('connectionStatusText');
+        const disconnectBtn = document.getElementById('disconnectAirbnbBtn');
+        const submitBtn = document.getElementById('connectAirbnbBtn');
+        
+        if (statusDot) {
+            statusDot.className = 'status-indicator ' + (isConnected ? 'connected' : '');
+        }
+        
+        if (statusText) {
+            statusText.textContent = isConnected ? 
+                `Conectado ao Airbnb: ${propertyName}` : 
+                'Não conectado ao Airbnb';
+        }
+        
+        if (disconnectBtn) {
+            disconnectBtn.style.display = isConnected ? 'inline-flex' : 'none';
+        }
+        
+        if (submitBtn) {
+            submitBtn.innerHTML = isConnected ? 
+                '<i class="fab fa-airbnb"></i> Reconectar' : 
+                '<i class="fab fa-airbnb"></i> Conectar Airbnb';
+        }
+    }
+
+    showActiveConnection(connection) {
+        const activeInfo = document.getElementById('activeConnectionInfo');
+        
+        if (activeInfo) {
+            document.getElementById('connRoomNumber').textContent = this.currentRoom?.number || 'N/A';
+            document.getElementById('connPropertyName').textContent = connection.propertyName || `Quarto ${this.currentRoom?.number}`;
+            document.getElementById('connLastSync').textContent = connection.lastSync ? 
+                new Date(connection.lastSync).toLocaleString('pt-BR') : 'Nunca';
+            document.getElementById('connStatus').textContent = connection.isActive ? 'Ativa' : 'Inativa';
+            document.getElementById('connStatus').className = connection.isActive ? 'status-active' : 'status-inactive';
+            
+            activeInfo.style.display = 'block';
+            this.currentAirbnbConnection = connection;
+        }
+        
+        const propertyNameInput = document.getElementById('airbnbPropertyName');
+        if (propertyNameInput) {
+            propertyNameInput.value = connection.propertyName || `Quarto ${this.currentRoom?.number}`;
+        }
+        
+        const icalUrlInput = document.getElementById('airbnbIcalUrl');
+        if (icalUrlInput) {
+            icalUrlInput.value = connection.icalUrl || '';
+        }
+    }
+
+    showNoConnection() {
+        const activeInfo = document.getElementById('activeConnectionInfo');
+        
+        if (activeInfo) {
+            activeInfo.style.display = 'none';
+            this.currentAirbnbConnection = null;
+        }
+        
+        const propertyNameInput = document.getElementById('airbnbPropertyName');
+        if (propertyNameInput && this.currentRoom) {
+            propertyNameInput.value = `Quarto ${this.currentRoom.number}`;
+        }
+        
+        const icalUrlInput = document.getElementById('airbnbIcalUrl');
+        if (icalUrlInput) {
+            icalUrlInput.value = '';
+        }
+    }
+
+    async connectAirbnb(event) {
+        event.preventDefault();
+        
+        const icalUrl = document.getElementById('airbnbIcalUrl').value.trim();
+        let propertyName = document.getElementById('airbnbPropertyName').value.trim();
+        const calendarName = document.getElementById('airbnbCalendarName').value.trim() || 'Calendário Elohostel';
+        const syncOnSetup = document.getElementById('syncOnSetup')?.checked !== false;
+        
+        if (!icalUrl) {
+            this.showAlert('Por favor, informe a URL iCal do Airbnb', 'error');
+            return;
+        }
+        
+        if (!icalUrl.includes('airbnb.com/calendar/ical/') && !icalUrl.endsWith('.ics')) {
+            this.showAlert('URL iCal inválida. Use o formato: https://www.airbnb.com/calendar/ical/xxxx.ics', 'warning');
+        }
+        
+        if (!propertyName && this.currentRoom) {
+            propertyName = `Quarto ${this.currentRoom.number}`;
+        }
+        
+        const submitBtn = event.target.querySelector('button[type="submit"]') || document.getElementById('connectAirbnbBtn');
+        const originalText = submitBtn.innerHTML;
+        
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando...';
+        
+        try {
+            const requestData = {
+                airbnbIcalUrl: icalUrl,
+                propertyId: String(this.currentRoom?.id),
+                propertyName: propertyName,
+                calendarName: calendarName,
+                roomNumber: this.currentRoom?.number,
+                roomId: this.currentRoom?.id
+            };
+            
+            console.log('📤 Conectando Airbnb para o quarto:', this.currentRoom?.number, 'ID:', this.currentRoom?.id);
+            
+            if (this.currentAirbnbConnection) {
+                await this.disconnectAirbnb(true);
+            }
+            
+            const response = await this.apiRequest(`${this.API_BASE_URL}/airbnb/setup-bidirectional`, {
+                method: 'POST',
+                body: JSON.stringify(requestData)
+            });
+            
+            if (response && response.success) {
+                this.showAlert(response.message || `Quarto ${this.currentRoom?.number} conectado ao Airbnb com sucesso!`, 'success');
+                
+                if (syncOnSetup) {
+                    this.showAlert('Iniciando sincronização inicial...', 'info');
+                    await this.performAirbnbSync(String(this.currentRoom?.id));
+                }
+                
+                await this.loadAirbnbConnection();
+                
+                if (response.yourExportUrl) {
+                    this.currentExportUrl = response.yourExportUrl;
+                    setTimeout(() => {
+                        this.showAlert('Configure a URL de exportação no Airbnb para sincronização completa', 'info');
+                    }, 1000);
+                }
+            } else {
+                throw new Error(response?.error || 'Erro ao conectar com Airbnb');
+            }
+            
+        } catch (error) {
+            console.error('Erro na conexão Airbnb:', error);
+            this.showAlert(`Erro ao conectar: ${error.message}`, 'error');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    }
+
+    async disconnectAirbnb(silent = false) {
+        if (!this.currentAirbnbConnection && !this.currentRoom) {
+            if (!silent) this.showAlert('Nenhuma conexão ativa para desconectar', 'warning');
+            return false;
+        }
+        
+        const propertyId = this.currentAirbnbConnection?.propertyId || String(this.currentRoom?.id);
+        
+        if (!silent) {
+            const confirmed = confirm(`Tem certeza que deseja desconectar o Quarto ${this.currentRoom?.number} do Airbnb?`);
+            if (!confirmed) return false;
+        }
+        
+        try {
+            const response = await this.apiRequest(`${this.API_BASE_URL}/airbnb/connections/${propertyId}`, {
+                method: 'DELETE'
+            });
+            
+            if (response && response.success) {
+                if (!silent) this.showAlert(`Quarto ${this.currentRoom?.number} desconectado do Airbnb`, 'success');
+                this.showNoConnection();
+                this.updateConnectionStatus(false);
+                this.currentAirbnbConnection = null;
+                return true;
+            } else {
+                throw new Error(response?.error || 'Erro ao desconectar');
+            }
+            
+        } catch (error) {
+            console.error('Erro ao desconectar Airbnb:', error);
+            if (!silent) this.showAlert(`Erro ao desconectar: ${error.message}`, 'error');
+            return false;
+        }
+    }
+
+    async manualAirbnbSync() {
+        if (!this.currentAirbnbConnection && !this.currentRoom) {
+            this.showAlert('Nenhuma conexão Airbnb ativa para este quarto', 'error');
+            return;
+        }
+        
+        const propertyId = this.currentAirbnbConnection?.propertyId || String(this.currentRoom?.id);
+        await this.performAirbnbSync(propertyId);
+    }
+
+    async performAirbnbSync(propertyId) {
+        const syncStatus = document.getElementById('syncingStatus');
+        const manualSyncBtn = document.getElementById('manualSyncBtn');
+        
+        if (syncStatus) syncStatus.style.display = 'block';
+        if (manualSyncBtn) {
+            manualSyncBtn.disabled = true;
+            manualSyncBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sincronizando...';
+        }
+        
+        const statusDot = document.getElementById('connectionStatusDot');
+        if (statusDot) statusDot.classList.add('syncing');
+        
+        try {
+            const response = await this.apiRequest(`${this.API_BASE_URL}/airbnb/sync-now/${propertyId}`, {
+                method: 'POST'
+            });
+            
+            if (response && response.success) {
+                this.showAlert(`Sincronização concluída para o Quarto ${this.currentRoom?.number}!`, 'success');
+                
+                setTimeout(() => {
+                    this.loadReservations();
+                }, 2000);
+            } else {
+                throw new Error(response?.error || 'Erro na sincronização');
+            }
+            
+        } catch (error) {
+            console.error('Erro na sincronização Airbnb:', error);
+            this.showAlert(`Erro na sincronização: ${error.message}`, 'error');
+        } finally {
+            if (syncStatus) syncStatus.style.display = 'none';
+            if (manualSyncBtn) {
+                manualSyncBtn.disabled = false;
+                manualSyncBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Sincronizar Agora';
+            }
+            if (statusDot) statusDot.classList.remove('syncing');
+            
+            await this.loadAirbnbConnection();
+        }
+    }
+
+    async showExportUrl() {
+        if (!this.currentAirbnbConnection && !this.currentRoom) {
+            this.showAlert('Nenhuma conexão ativa', 'error');
+            return;
+        }
+        
+        const propertyId = this.currentAirbnbConnection?.propertyId || String(this.currentRoom?.id);
+        const connection = await this.apiRequest(`${this.API_BASE_URL}/airbnb/connections/${propertyId}`);
+        
+        if (connection?.connection?.exportIcalUrl) {
+            this.currentExportUrl = connection.connection.exportIcalUrl;
+            const exportUrlField = document.getElementById('exportUrlField');
+            if (exportUrlField) {
+                exportUrlField.value = this.currentExportUrl;
+            }
+            this.openModal('exportUrlModal');
+        } else if (this.currentAirbnbConnection?.exportIcalUrl) {
+            this.currentExportUrl = this.currentAirbnbConnection.exportIcalUrl;
+            const exportUrlField = document.getElementById('exportUrlField');
+            if (exportUrlField) {
+                exportUrlField.value = this.currentExportUrl;
+            }
+            this.openModal('exportUrlModal');
+        } else {
+            this.showAlert('URL de exportação não disponível. Conecte-se primeiro ao Airbnb.', 'warning');
+        }
+    }
+
+    copyExportUrl() {
+        const exportUrlField = document.getElementById('exportUrlField');
+        if (exportUrlField && exportUrlField.value) {
+            exportUrlField.select();
+            document.execCommand('copy');
+            this.showAlert('URL copiada para a área de transferência!', 'success');
+        }
     }
 }
 

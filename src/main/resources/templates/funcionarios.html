@@ -11,7 +11,10 @@
 <body>
     <header class="header">
         <div class="container">
-            <h1 class="logo">Interactive Edge</h1>
+            <div class="logo-container">
+                <img th:src="@{/images/logo-header1.png}" alt="Interactive Edge Logo" class="logo-image">
+                <h1 class="logo">Interactive Edge</h1>
+            </div>
             <nav class="nav">
                 <a th:href="@{/}" class="nav-link"><i class="fas fa-home"></i> Dashboard</a>
                 <a th:href="@{/guest}" class="nav-link"><i class="fas fa-users"></i> Hóspedes</a>

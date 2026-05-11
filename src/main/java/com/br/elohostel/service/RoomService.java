@@ -76,11 +76,30 @@ public class RoomService {
     @Transactional
     public Room insertBed(Long id) {
         Room room = findById(id);
-        Bed newBed = new Bed(BedStatus.VAGUE, room);
+        String tenantKey = room.getTenant().getTenantKey();
+        List<Integer> existingNumbers = bedRepo.findAllBedNumbersByRoomAndTenant(room.getId(), tenantKey);
+        Integer nextNumber = findSmallestAvailableNumber(existingNumbers);
+        Bed newBed = new Bed(BedStatus.VAGUE, nextNumber, room);
         newBed.setTenant(room.getTenant());
         bedRepo.save(newBed);
         room.getBeds().add(newBed);
         return repo.save(room);
+    }
+
+    private Integer findSmallestAvailableNumber(List<Integer> existingNumbers) {
+        if (existingNumbers == null || existingNumbers.isEmpty()) {
+            return 1;
+        }
+        existingNumbers.sort(Integer::compareTo);
+
+        int expectedNumber = 1;
+        for (Integer number : existingNumbers) {
+            if (number > expectedNumber) {
+                return expectedNumber; 
+            }
+            expectedNumber = number + 1;
+        }
+        return expectedNumber;
     }
 
     @Transactional

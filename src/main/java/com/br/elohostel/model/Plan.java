@@ -1,12 +1,14 @@
 package com.br.elohostel.model;
 
-import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -15,36 +17,54 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "TB_PLAN")
-public class Plan implements Serializable {
-    private static final long serialVersionUID = 1L;
+@Table(name = "TB_ENTITY")
+public class Plan {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    
+    @Column(unique = true, nullable = false)
     private String name;
+    
     private String description;
-    private BigDecimal price;
-    private String currency;    
-    private Integer frequency;   
-    private String frequencyType; 
-    private String mpPlanId; 
+    
+    @Column(nullable = false)
+    private Integer frequency;
+    
+    @Column(nullable = false)
+    private String frequencyType;
+    
+    @Column(nullable = false, precision = 10, scale = 2)
+    private BigDecimal transactionAmount;
+    
+    @Column(nullable = false)
+    private String currencyId;
+    
+    private Integer maxRooms;
+    private Integer maxBeds;
+    private Boolean isActive;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 
     @JsonIgnore
-    @OneToMany
-    private List<Signature> signatures = new ArrayList<>();
+    @OneToMany(mappedBy = "plan", cascade = CascadeType.ALL)
+    private List<Subscription> subscriptions = new ArrayList<>();
 
-    public Plan () {}
+    public Plan() {}
 
-    public Plan(String name, String description, BigDecimal price, String currency, Integer frequency,
-            String frequencyType, String mpPlanId) {
+    public Plan(String name, String description, Integer frequency, String frequencyType, BigDecimal transactionAmount,
+            String currencyId, Integer maxRooms, Integer maxBeds) {
         this.name = name;
         this.description = description;
-        this.price = price;
-        this.currency = currency;
         this.frequency = frequency;
         this.frequencyType = frequencyType;
-        this.mpPlanId = mpPlanId;
+        this.transactionAmount = transactionAmount;
+        this.currencyId = currencyId;
+        this.maxRooms = maxRooms;
+        this.maxBeds = maxBeds;
+        this.isActive = true;
+        this.createdAt = LocalDateTime.now();
     }
 
     public Long getId() {
@@ -71,22 +91,6 @@ public class Plan implements Serializable {
         this.description = description;
     }
 
-    public BigDecimal getPrice() {
-        return price;
-    }
-
-    public void setPrice(BigDecimal price) {
-        this.price = price;
-    }
-
-    public String getCurrency() {
-        return currency;
-    }
-
-    public void setCurrency(String currency) {
-        this.currency = currency;
-    }
-
     public Integer getFrequency() {
         return frequency;
     }
@@ -103,18 +107,66 @@ public class Plan implements Serializable {
         this.frequencyType = frequencyType;
     }
 
-    public String getMpPlanId() {
-        return mpPlanId;
+    public BigDecimal getTransactionAmount() {
+        return transactionAmount;
     }
 
-    public void setMpPlanId(String mpPlanId) {
-        this.mpPlanId = mpPlanId;
+    public void setTransactionAmount(BigDecimal transactionAmount) {
+        this.transactionAmount = transactionAmount;
     }
 
-    public List<Signature> getSignatures() {
-        return signatures;
+    public String getCurrencyId() {
+        return currencyId;
     }
-    
+
+    public void setCurrencyId(String currencyId) {
+        this.currencyId = currencyId;
+    }
+
+    public Integer getMaxRooms() {
+        return maxRooms;
+    }
+
+    public void setMaxRooms(Integer maxRooms) {
+        this.maxRooms = maxRooms;
+    }
+
+    public Integer getMaxBeds() {
+        return maxBeds;
+    }
+
+    public void setMaxBeds(Integer maxBeds) {
+        this.maxBeds = maxBeds;
+    }
+
+    public Boolean getIsActive() {
+        return isActive;
+    }
+
+    public void setIsActive(Boolean isActive) {
+        this.isActive = isActive;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
+    public List<Subscription> getSubscriptions() {
+        return subscriptions; 
+    }
+
     @Override
     public int hashCode() {
         final int prime = 31;
@@ -140,4 +192,5 @@ public class Plan implements Serializable {
         return true;
     }
     
+
 }

@@ -44,11 +44,39 @@ body {
     z-index: 1000;
 }
 
+.header .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
 .logo {
     font-size: 1.5rem;
     font-weight: bold;
     display: inline-block;
     vertical-align: middle;
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    float: left;
+}
+
+.logo-image {
+    height: 40px;
+    width: auto;
+    max-height: 50px;
+    object-fit: contain;
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: bold;
+    display: inline-block;
+    margin: 0;
 }
 
 .nav {
@@ -1578,6 +1606,24 @@ body {
         padding: 0.5rem;
         font-size: 0.8rem;
     }
+
+    .logo-container {
+        float: none;
+        justify-content: center;
+        margin-bottom: 1rem;
+    }
+    
+    .logo-image {
+        height: 30px;
+    }
+    
+    .logo {
+        font-size: 1.2rem;
+    }
+    
+    .header .container {
+        flex-direction: column;
+    }
 }
 
 @media (max-width: 480px) {
@@ -1639,6 +1685,18 @@ body {
 
     .preview-item {
         font-size: 0.85rem;
+    }
+    
+     .logo-image {
+        height: 25px;
+    }
+    
+    .logo {
+        font-size: 1rem;
+    }
+    
+    .logo-container {
+        gap: 10px;
     }
 }
 

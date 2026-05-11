@@ -41,6 +41,34 @@ body {
     position: relative;
     z-index: 1000;
 }
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    float: left;
+}
+
+.logo-image {
+    height: 40px;
+    width: auto;
+    max-height: 50px;
+    object-fit: contain;
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: bold;
+    display: inline-block;
+    margin: 0;
+}
+
+/* Ajuste para o container do header */
+.header .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+}
 
 .logo {
     font-size: 1.5rem;
@@ -1148,6 +1176,24 @@ body {
     .header {
         padding: 0.8rem 0;
     }
+
+    .logo-container {
+        float: none;
+        justify-content: center;
+        margin-bottom: 1rem;
+    }
+    
+    .logo-image {
+        height: 30px;
+    }
+    
+    .logo {
+        font-size: 1.2rem;
+    }
+    
+    .header .container {
+        flex-direction: column;
+    }
     
     .nav {
         float: none;
@@ -1212,7 +1258,17 @@ body {
     .container {
         padding: 0 15px;
     }
+    .logo-image {
+        height: 25px;
+    }
     
+    .logo {
+        font-size: 1rem;
+    }
+    
+    .logo-container {
+        gap: 10px;
+    }
     .nav-link {
         padding: 0.4rem 0.8rem;
         font-size: 0.8rem;

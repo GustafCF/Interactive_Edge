@@ -26,6 +26,10 @@ public class Bed implements Serializable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    
+    @Column(name = "bed_number")
+    private Integer number;  
+    
     @Column(name = "status")
     private BedStatus bedStatus;
 
@@ -44,8 +48,9 @@ public class Bed implements Serializable {
 
     public Bed() {}
 
-    public Bed(BedStatus bedStatus, Room room) {
+    public Bed(BedStatus bedStatus, Integer number, Room room) {
         this.bedStatus = bedStatus;
+        this.number = number;
         this.room = room;
     }
 
@@ -55,6 +60,14 @@ public class Bed implements Serializable {
 
     public void setId(Long id) {
         this.id = id;
+    }
+    
+    public Integer getNumber() {
+        return number;
+    }
+    
+    public void setNumber(Integer number) {
+        this.number = number;
     }
 
     public BedStatus getBedStatus() {

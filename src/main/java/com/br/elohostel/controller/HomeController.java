@@ -65,4 +65,9 @@ public class HomeController {
     public String teste() {
         return "teste";
     }
+
+    @GetMapping("/success")
+    public String success() {
+        return "success";
+    }
 }

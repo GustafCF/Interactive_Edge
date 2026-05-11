@@ -87,6 +87,35 @@ body {
     vertical-align: middle;
 }
 
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    float: left;
+}
+
+.logo-image {
+    height: 40px;
+    width: auto;
+    max-height: 50px;
+    object-fit: contain;
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: bold;
+    display: inline-block;
+    margin: 0;
+}
+
+/* Ajuste para o container do header */
+.header .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
 /* Dropdown */
 .dropdown {
     position: relative;
@@ -675,6 +704,24 @@ body {
     .form-actions .btn {
         width: 100%;
     }
+
+        .logo-container {
+        float: none;
+        justify-content: center;
+        margin-bottom: 1rem;
+    }
+    
+    .logo-image {
+        height: 30px;
+    }
+    
+    .logo {
+        font-size: 1.2rem;
+    }
+    
+    .header .container {
+        flex-direction: column;
+    }
 }
 
 @media (max-width: 480px) {
@@ -715,5 +762,16 @@ body {
     .btn {
         padding: 0.6rem 1rem;
         font-size: 0.9rem;
+    }
+    .logo-image {
+        height: 25px;
+    }
+    
+    .logo {
+        font-size: 1rem;
+    }
+    
+    .logo-container {
+        gap: 10px;
     }
 }

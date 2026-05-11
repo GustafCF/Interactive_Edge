@@ -41,25 +41,25 @@ public class ResourceExceptionHandler {
     }
 
     //arquivos 
-    @ExceptionHandler(IOException.class)
-    public ResponseEntity<Object> handleFileNotFoundException(IOException ex) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("timestamp", LocalDateTime.now());
-        body.put("status", HttpStatus.NOT_FOUND.value());
-        body.put("error", "Arquivo não encontrado");
-        body.put("message", ex.getMessage());
+    // @ExceptionHandler(IOException.class)
+    // public ResponseEntity<Object> handleFileNotFoundException(IOException ex) {
+    //     Map<String, Object> body = new LinkedHashMap<>();
+    //     body.put("timestamp", LocalDateTime.now());
+    //     body.put("status", HttpStatus.NOT_FOUND.value());
+    //     body.put("error", "Arquivo não encontrado");
+    //     body.put("message", ex.getMessage());
         
-        return new ResponseEntity<>(body, HttpStatus.NOT_FOUND);
-    }
+    //     return new ResponseEntity<>(body, HttpStatus.NOT_FOUND);
+    // }
 
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<Object> handleGenericException(Exception ex) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("timestamp", LocalDateTime.now());
-        body.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
-        body.put("error", "Erro interno no servidor");
-        body.put("message", "Ocorreu um erro durante o download do arquivo");
+    // @ExceptionHandler(Exception.class)
+    // public ResponseEntity<Object> handleGenericException(Exception ex) {
+    //     Map<String, Object> body = new LinkedHashMap<>();
+    //     body.put("timestamp", LocalDateTime.now());
+    //     body.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
+    //     body.put("error", "Erro interno no servidor");
+    //     body.put("message", "Ocorreu um erro durante o download do arquivo");
         
-        return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    //     return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);
+    // }
 }

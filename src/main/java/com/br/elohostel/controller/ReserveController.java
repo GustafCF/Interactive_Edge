@@ -35,7 +35,6 @@ public class ReserveController {
 
     private static final Logger logger = Logger.getLogger(ReserveController.class.getName());
 
-
     private final ReserveService service;
 
     public ReserveController(ReserveService service) {
@@ -55,7 +54,7 @@ public class ReserveController {
     }
 
     @PostMapping("/insert")
-    public ResponseEntity<Reserve> insert(@RequestBody ReservesionRequest request){
+    public ResponseEntity<Reserve> insert(@RequestBody ReservesionRequest request) {
         var obj = service.createReserve(request);
         URI uri = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(obj.getId()).toUri();
         return ResponseEntity.created(uri).body(obj);
@@ -99,7 +98,7 @@ public class ReserveController {
 
     @PutMapping("/add-guest/{id}")
     public ResponseEntity<Reserve> addGuest(@PathVariable Long id, @RequestParam("nameGuest") String nameGuest) {
-        System.out.println("Guest 3:" + nameGuest);
+        System.out.println("Guest: " + nameGuest);
         var reserve = service.addGuestForReserve(id, nameGuest);
         return ResponseEntity.ok().body(reserve);
     }
@@ -128,6 +127,7 @@ public class ReserveController {
         return ResponseEntity.noContent().build();
     }
 
+    // CORRIGIDO: endpoint para setar valor personalizado
     @PutMapping("/{id}/custom-value")
     public ResponseEntity<Reserve> setCustomValue(
             @PathVariable Long id, 
@@ -136,12 +136,14 @@ public class ReserveController {
         return ResponseEntity.ok(reserve);
     }
 
+    // CORRIGIDO: endpoint para voltar ao valor automático
     @PutMapping("/{id}/auto-value")
     public ResponseEntity<Reserve> setAutoValue(@PathVariable Long id) {
         Reserve reserve = service.setAutoValue(id);
         return ResponseEntity.ok(reserve);
     }
 
+    // CORRIGIDO: endpoint para atualizar taxa de hóspede extra
     @PutMapping("/{id}/extra-guest-fee")
     public ResponseEntity<Reserve> updateExtraGuestFee(
             @PathVariable Long id, 
@@ -150,6 +152,7 @@ public class ReserveController {
         return ResponseEntity.ok(reserve);
     }
 
+    // CORRIGIDO: endpoint para obter detalhes do valor
     @GetMapping("/{id}/value-details")
     public ResponseEntity<Map<String, Object>> getValueDetails(@PathVariable Long id) {
         Map<String, Object> details = service.getValueDetails(id);
@@ -163,81 +166,179 @@ public class ReserveController {
         
         Reserve reserve = service.findById(id);
         
-        if (request.getUseCustomValue() != null) {
-            reserve.setUseCustomValue(request.getUseCustomValue());
+        // Usando os nomes corretos dos métodos
+        if (request.useCustomAmount() != null) {
+            reserve.setUseCustomAmount(request.useCustomAmount());
         }
         
-        if (request.getCustomValue() != null) {
-            reserve.setCustomValue(request.getCustomValue());
+        if (request.customTotalAmount() != null) {
+            reserve.setCustomTotalAmount(request.customTotalAmount());
         }
         
-        if (request.getExtraGuestFee() != null) {
-            reserve.setExtraGuestFee(request.getExtraGuestFee());
+        if (request.extraGuestDailyFee() != null) {
+            reserve.setExtraGuestDailyFee(request.extraGuestDailyFee());
         }
+        
+        // Recalcula o total se necessário
+        reserve.calculateTotalAmount();
         
         Reserve updatedReserve = service.save(reserve);
         return ResponseEntity.ok(updatedReserve);
     }
 
-
-@PostMapping("/create-with-guest")
-public ResponseEntity<?> createReservationWithGuest(@RequestBody CreateReservationWithGuestRequest request) {
-    try {
-        if (request.guests() == null || request.guests().isEmpty()) {
-            return ResponseEntity.badRequest().body("Pelo menos um hóspede deve ser informado");
-        }
-        
-        if (request.roomNumber() == null) {
-            return ResponseEntity.badRequest().body("Número do quarto é obrigatório");
-        }
-        
-        if (request.dates() == null || request.dates().isEmpty()) {
-            return ResponseEntity.badRequest().body("Pelo menos uma data deve ser informada");
-        }
-
-        // ✅ VALIDAR DADOS DOS HÓSPEDES
-        for (int i = 0; i < request.guests().size(); i++) {
-            var guest = request.guests().get(i);
-            if (guest.name() == null || guest.name().trim().isEmpty()) {
-                return ResponseEntity.badRequest().body("Nome do hóspede " + (i + 1) + " é obrigatório");
+    @PostMapping("/create-with-guest")
+    public ResponseEntity<?> createReservationWithGuest(@RequestBody CreateReservationWithGuestRequest request) {
+        try {
+            if (request.guests() == null || request.guests().isEmpty()) {
+                return ResponseEntity.badRequest().body("Pelo menos um hóspede deve ser informado");
             }
-            if (guest.rg() == null || guest.rg().trim().isEmpty()) {
-                return ResponseEntity.badRequest().body("RG do hóspede " + (i + 1) + " é obrigatório");
+            
+            if (request.roomNumber() == null) {
+                return ResponseEntity.badRequest().body("Número do quarto é obrigatório");
             }
-        }
+            
+            if (request.dates() == null || request.dates().isEmpty()) {
+                return ResponseEntity.badRequest().body("Pelo menos uma data deve ser informada");
+            }
+            
+            for (int i = 0; i < request.guests().size(); i++) {
+                var guest = request.guests().get(i);
+                if (guest.name() == null || guest.name().trim().isEmpty()) {
+                    return ResponseEntity.badRequest().body("Nome do hóspede " + (i + 1) + " é obrigatório");
+                }
+                if (guest.rg() == null || guest.rg().trim().isEmpty()) {
+                    return ResponseEntity.badRequest().body("RG do hóspede " + (i + 1) + " é obrigatório");
+                }
+            }
 
-        Reserve reservation = service.createReservationWithGuest(request);
-        
-        URI uri = ServletUriComponentsBuilder.fromCurrentRequest()
-                .path("/{id}")
-                .buildAndExpand(reservation.getId())
-                .toUri();
-                
-        // logger.info("✅ Reserva criada com sucesso: #{} com {} hóspedes", 
-        //            reservation.getId(), request.guests().size());
-        
-        return ResponseEntity.created(uri).body(reservation);
-        
-    } catch (ResourceNotFoundException e) {
-        // logger.error("❌ Recurso não encontrado: {}", e.getMessage());
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Recurso não encontrado: " + e.getMessage());
-    } catch (IllegalStateException e) {
-        // logger.error("❌ Conflito de disponibilidade: {}", e.getMessage());
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
-    } catch (IllegalArgumentException e) {
-        // logger.error("❌ Dados inválidos: {}", e.getMessage());
-        return ResponseEntity.badRequest().body(e.getMessage());
-    } catch (Exception e) {
-        // logger.error("❌ Erro interno ao criar reserva: {}", e.getMessage());
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Erro interno ao criar reserva: " + e.getMessage());
+            Reserve reservation = service.createReservationWithGuest(request);
+            
+            URI uri = ServletUriComponentsBuilder.fromCurrentRequest()
+                    .path("/{id}")
+                    .buildAndExpand(reservation.getId())
+                    .toUri();
+            return ResponseEntity.created(uri).body(reservation);
+            
+        } catch (ResourceNotFoundException e) {
+            logger.severe("❌ Recurso não encontrado: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Recurso não encontrado: " + e.getMessage());
+        } catch (IllegalStateException e) {
+            logger.severe("❌ Conflito de disponibilidade: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            logger.severe("❌ Dados inválidos: " + e.getMessage());
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            logger.severe("❌ Erro interno ao criar reserva: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Erro interno ao criar reserva: " + e.getMessage());
+        }
     }
-}
 
+    // CORRIGIDO: endpoint para atualizar dados da reserva
     @PutMapping("/up/{id}")
     public ResponseEntity<Reserve> up(@PathVariable Long id, @RequestBody UpdateDataReserveDTO dto) {
         var obj = service.reserveUpdateExtra(id, dto);
         return ResponseEntity.ok().body(obj);
     }
 
+    @GetMapping("/check-availability")
+    public ResponseEntity<?> checkAvailability(
+            @RequestParam Integer roomNumber,
+            @RequestParam LocalDate checkIn,
+            @RequestParam LocalDate checkOut) {
+        try {
+            Map<String, Object> availability = service.checkAvailability(roomNumber, checkIn, checkOut);
+            return ResponseEntity.ok(availability);
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Erro ao verificar disponibilidade: " + e.getMessage());
+        }
+    }
+
+    // CORRIGIDO: endpoint para atualizar valores da reserva com ajuste manual
+    @PutMapping("/update-values/{id}")
+    public ResponseEntity<Reserve> updateReserveValues(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> values) {
+        
+        Reserve reserve = service.findById(id);
+        
+        // Atualiza os campos com os novos nomes
+        if (values.containsKey("dailyRate")) {
+            BigDecimal dailyRate = new BigDecimal(values.get("dailyRate").toString());
+            reserve.setDailyRate(dailyRate);
+        } else if (values.containsKey("initialValue")) {
+            // Mantém compatibilidade com o nome antigo
+            BigDecimal dailyRate = new BigDecimal(values.get("initialValue").toString());
+            reserve.setDailyRate(dailyRate);
+        }
+        
+        if (values.containsKey("extraGuestDailyFee")) {
+            BigDecimal extraFee = new BigDecimal(values.get("extraGuestDailyFee").toString());
+            reserve.setExtraGuestDailyFee(extraFee);
+        } else if (values.containsKey("extraGuestFee")) {
+            // Mantém compatibilidade com o nome antigo
+            BigDecimal extraFee = new BigDecimal(values.get("extraGuestFee").toString());
+            reserve.setExtraGuestDailyFee(extraFee);
+        }
+        
+        if (values.containsKey("manualAdjustment")) {
+            BigDecimal adjustment = new BigDecimal(values.get("manualAdjustment").toString());
+            BigDecimal calculatedValue = reserve.calculateTotalAmount().add(adjustment);
+            reserve.setCustomTotalAmount(calculatedValue);
+            reserve.setUseCustomAmount(true);
+        }
+        
+        Reserve updatedReserve = service.save(reserve);
+        return ResponseEntity.ok(updatedReserve);
+    }
+
+    // CORRIGIDO: endpoint para atualizar valores com ajuste manual
+    @PutMapping("/update-values-with-adjustment/{id}")
+    public ResponseEntity<Reserve> updateValuesWithAdjustment(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> values) {
+        
+        Reserve reserve = service.findById(id);
+        
+        // Atualiza valores base com os novos nomes
+        if (values.containsKey("dailyRate")) {
+            BigDecimal dailyRate = new BigDecimal(values.get("dailyRate").toString());
+            reserve.setDailyRate(dailyRate);
+        } else if (values.containsKey("initialValue")) {
+            // Mantém compatibilidade com o nome antigo
+            BigDecimal dailyRate = new BigDecimal(values.get("initialValue").toString());
+            reserve.setDailyRate(dailyRate);
+        }
+        
+        if (values.containsKey("extraGuestDailyFee")) {
+            BigDecimal extraFee = new BigDecimal(values.get("extraGuestDailyFee").toString());
+            reserve.setExtraGuestDailyFee(extraFee);
+        } else if (values.containsKey("extraGuestFee")) {
+            // Mantém compatibilidade com o nome antigo
+            BigDecimal extraFee = new BigDecimal(values.get("extraGuestFee").toString());
+            reserve.setExtraGuestDailyFee(extraFee);
+        }
+        
+        // Calcula o novo total com ajuste
+        BigDecimal calculatedValue = reserve.calculateTotalAmount();
+        
+        if (values.containsKey("manualAdjustment")) {
+            BigDecimal adjustment = new BigDecimal(values.get("manualAdjustment").toString());
+            BigDecimal finalValue = calculatedValue.add(adjustment);
+            reserve.setCustomTotalAmount(finalValue);
+            reserve.setUseCustomAmount(true);
+        } else {
+            reserve.setUseCustomAmount(false);
+            reserve.setCustomTotalAmount(null);
+        }
+        
+        Reserve updatedReserve = service.save(reserve);
+        return ResponseEntity.ok(updatedReserve);
+    }
 }

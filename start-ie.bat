@@ -2,7 +2,7 @@
 echo Iniciando a API Spring Boot...
 echo.
 
-cd /d c:\Interactive_Edge-main
+cd /d c:\Interactive_Edge
 
 REM Verifica se o Maven está disponível
 where mvn >nul 2>nul

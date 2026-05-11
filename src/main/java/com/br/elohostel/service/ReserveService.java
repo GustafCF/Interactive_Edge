@@ -95,7 +95,7 @@ public class ReserveService {
         return reserveRepo.save(reserve);
     }
 
-    @Transactional
+   @Transactional
     public Reserve createReservationWithGuest(CreateReservationWithGuestRequest request) {
         try {
             if (request.guests() == null || request.guests().isEmpty()) {
@@ -107,11 +107,11 @@ public class ReserveService {
                 .map(this::findOrCreateGuestWithCompleteInfo)
                 .collect(Collectors.toList());
             
-            Guest mainGuest = guests.get(0);
             Room room = roomRepo.findByNumberAndTenant_TenantKey(request.roomNumber(), tenantKey)
                     .orElseThrow(() -> new ResourceNotFoundException("Quarto não encontrado: " + request.roomNumber()));
-
-            validateDatesAvailability(room, request.dates());
+            
+            int numberOfGuests = guests.size();
+            validateDatesAvailability(room, request.dates(), numberOfGuests);
 
             Reserve reserve = new Reserve();
             reserve.setReservedDays(request.dates());
@@ -121,14 +121,14 @@ public class ReserveService {
             guests.forEach(reserve.getGuest()::add);
             reserve.getRooms().add(room);
             
-            reserve.setInitialValue(room.getPrice());
-            reserve.setUseCustomValue(false);
+            reserve.setDailyRate(room.getPrice());
+            reserve.setUseCustomAmount(false);
             
-            reserve.calculateTotalValue();
+            reserve.calculateTotalAmount();
 
             Reserve savedReserve = reserveRepo.save(reserve);
 
-            createOccupations(savedReserve, room, request.dates());
+            createOccupations(savedReserve, room, request.dates(), numberOfGuests);
 
             guests.forEach(guest -> {
                 guest.getReservation().add(savedReserve);
@@ -138,6 +138,7 @@ public class ReserveService {
             return savedReserve;
 
         } catch (Exception e) {
+            logger.severe("Erro na criação de reserva: " + e.getMessage());
             throw new RuntimeException("Falha na criação de reserva: " + e.getMessage(), e);
         }
     }
@@ -192,52 +193,110 @@ public class ReserveService {
         }
     }
 
-    private void validateDatesAvailability(Room room, Set<LocalDate> dates) {
-        String tenantKey = getCurrentTenantKey();
-        if (room.isExclusiveRoom() || room.isSharedBathroom() || room.isStudio() || room.isSuite()) {
-            boolean conflict = roomOccupationRepo.findAll().stream()
-                .filter(ro -> ro.getRoom().equals(room))
-                .anyMatch(ro -> ro.getOccupiedDays().stream().anyMatch(dates::contains));
-                
-            if (conflict) {
-                throw new IllegalStateException("Quarto " + room.getNumber() + " já está reservado para algumas das datas selecionadas.");
-            }
-        } else if (room.isSharedRoom()) {
-            long availableBeds = bedRepo.findAll().stream()
-                .filter(b -> b.getRoom().equals(room))
-                .filter(b -> bedOccupationRepo.findConflicts(b, dates, tenantKey).isEmpty())
-                .count();
+private void validateDatesAvailability(Room room, Set<LocalDate> dates, int numberOfGuests) {
+    String tenantKey = getCurrentTenantKey();
+    if (room.isExclusiveRoom() || room.isStudio() || room.isSuite()) {
+        boolean conflict = roomOccupationRepo.findAll().stream()
+            .filter(ro -> ro.getRoom().equals(room))
+            .anyMatch(ro -> ro.getOccupiedDays().stream().anyMatch(dates::contains));
+            
+        if (conflict) {
+            throw new IllegalStateException("Quarto " + room.getNumber() + " já está reservado para algumas das datas selecionadas.");
+        }
+    } else if (room.isSharedRoom() || room.isSharedBathroom()) {
+        long availableBeds = bedRepo.findByRoomAndTenant_TenantKey(room, tenantKey).stream()
+            .filter(bed -> bedOccupationRepo.findConflicts(bed, dates, tenantKey).isEmpty())
+            .count();
 
-            if (availableBeds == 0) {
-                throw new IllegalStateException("Nenhuma cama disponível no quarto compartilhado " + room.getNumber() + " para as datas selecionadas.");
-            }
+        if (availableBeds < numberOfGuests) {
+            throw new IllegalStateException(
+                String.format("Quarto compartilhado %s tem apenas %d cama(s) disponível(is) para as datas selecionadas, mas são necessárias %d cama(s) para %d hóspede(s).",
+                    room.getNumber(), availableBeds, numberOfGuests, numberOfGuests)
+            );
         }
     }
+}
 
-    private void createOccupations(Reserve reserve, Room room, Set<LocalDate> dates) {
-        String tenantKey = getCurrentTenantKey();
-        if (room.isExclusiveRoom() || room.isSharedBathroom() || room.isStudio() || room.isSuite()) {
-            RoomOccupation ro = new RoomOccupation();
-            ro.setRoom(room);
-            ro.setReserve(reserve);
-            ro.getOccupiedDays().addAll(dates);
-            ro.setTenant(room.getTenant());
-            roomOccupationRepo.save(ro);
-            
-        } else if (room.isSharedRoom()) {
-            Bed availableBed = bedRepo.findAll().stream()
-                .filter(b -> b.getRoom().equals(room))
-                .filter(b -> bedOccupationRepo.findConflicts(b, dates, tenantKey).isEmpty())
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Nenhuma cama disponível no quarto compartilhado " + room.getNumber()));
+private void createOccupations(Reserve reserve, Room room, Set<LocalDate> dates, int numberOfGuests) {
+    String tenantKey = getCurrentTenantKey();
+    if (room.isExclusiveRoom() || room.isStudio() || room.isSuite()) {
+        RoomOccupation ro = new RoomOccupation();
+        ro.setRoom(room);
+        ro.setReserve(reserve);
+        ro.getOccupiedDays().addAll(dates);
+        ro.setTenant(room.getTenant());
+        roomOccupationRepo.save(ro);
+        
+    } else if (room.isSharedRoom() || room.isSharedBathroom()) {
+        // 🔥 CORREÇÃO: Buscar MÚLTIPLAS camas disponíveis
+        List<Bed> availableBeds = findAvailableBedsForDatesInRoom(room, dates, numberOfGuests);
+        
+        if (availableBeds.size() < numberOfGuests) {
+            throw new IllegalStateException(
+                String.format("Não há camas suficientes no quarto %s. Necessárias: %d, Disponíveis: %d",
+                    room.getNumber(), numberOfGuests, availableBeds.size())
+            );
+        }
 
+        // Criar uma ocupação para CADA cama
+        for (Bed bed : availableBeds) {
             BedOccupation bo = new BedOccupation();
-            bo.setBed(availableBed);
+            bo.setBed(bed);
             bo.setReserve(reserve);
             bo.getOccupiedDays().addAll(dates);
-            bo.setTenant(availableBed.getTenant());
+            bo.setTenant(bed.getTenant());
             bedOccupationRepo.save(bo);
         }
+    }
+}
+
+private List<Bed> findAvailableBedsForDatesInRoom(Room room, Set<LocalDate> dates, int bedsNeeded) {
+    String tenantKey = getCurrentTenantKey();
+
+    List<Bed> availableBeds = bedRepo.findByRoomAndTenant_TenantKey(room, tenantKey)
+        .stream()
+        .filter(bed -> !hasBedOccupationConflict(bed, dates, tenantKey))
+        .collect(Collectors.toList());
+    
+    if (availableBeds.size() < bedsNeeded) {
+        return new ArrayList<>();  // Retorna lista vazia se não tiver camas suficientes
+    }
+    
+    // Retorna as primeiras N camas disponíveis
+    return availableBeds.subList(0, bedsNeeded);
+}
+
+
+    private Bed findAvailableBedForDatesInRoom(Room room, Set<LocalDate> dates) {
+        String tenantKey = getCurrentTenantKey();
+
+        List<Bed> availableBeds = bedRepo.findByRoomAndTenant_TenantKey(room, tenantKey)
+            .stream()
+            .filter(bed -> bed.getBedStatus() == BedStatus.VAGUE)
+            .filter(bed -> !hasBedOccupationConflict(bed, dates, tenantKey))
+            .collect(Collectors.toList());
+        
+        if (availableBeds.isEmpty()) {
+            availableBeds = bedRepo.findByRoomAndTenant_TenantKey(room, tenantKey)
+                .stream()
+                .filter(bed -> !hasBedOccupationConflict(bed, dates, tenantKey))
+                .collect(Collectors.toList());
+        }
+        
+        return availableBeds.isEmpty() ? null : availableBeds.get(0);
+    }
+
+    private boolean hasBedOccupationConflict(Bed bed, Set<LocalDate> dates, String tenantKey) {
+        List<BedOccupation> conflicts = bedOccupationRepo.findConflicts(bed, dates, tenantKey);
+        
+        for (BedOccupation occupation : conflicts) {
+            for (LocalDate date : dates) {
+                if (occupation.getOccupiedDays().contains(date)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     @Transactional
@@ -245,9 +304,10 @@ public class ReserveService {
         String tenantKey = getCurrentTenantKey();
         var guest = guestRepo.findByNameAndTenant_TenantKey(request.guestName(), tenantKey)
                 .orElseThrow(() -> new ResourceNotFoundException(request.guestName()));
-
         var room = roomRepo.findByNumberAndTenant_TenantKey(request.roomNumber(), tenantKey)
                 .orElseThrow(() -> new ResourceNotFoundException(request.roomNumber()));
+        int numberOfGuests = 1;
+        validateDatesAvailability(room, request.dates(), numberOfGuests);
 
         Reserve reserve = new Reserve();
         reserve.setReservedDays(request.dates());
@@ -255,15 +315,12 @@ public class ReserveService {
         reserve.setTenant(getCurrentTenant());
         reserve.getGuest().add(guest);
         reserve.getRooms().add(room);
-        
-        reserve.setInitialValue(room.getPrice());
-        reserve.setUseCustomValue(false);
-        
-        reserve.calculateTotalValue();
-
+        reserve.setDailyRate(room.getPrice());
+        reserve.setUseCustomAmount(false);
+        reserve.calculateTotalAmount();
         Reserve savedReserve = reserveRepo.save(reserve);
 
-        if (room.isExclusiveRoom() || room.isSharedBathroom() || room.isStudio() || room.isSuite()) {
+        if (room.isExclusiveRoom() || room.isStudio() || room.isSuite()) {
             boolean conflit = roomOccupationRepo.findAll().stream()
                 .filter(ro -> ro.getRoom().equals(room))
                 .anyMatch(ro -> ro.getOccupiedDays().stream().anyMatch(request.dates()::contains));
@@ -274,94 +331,101 @@ public class ReserveService {
             ro.setReserve(savedReserve);
             ro.getOccupiedDays().addAll(request.dates());
             roomOccupationRepo.save(ro);
-        }
-
-        if (room.isSharedRoom()) {
-            Bed availableBed = bedRepo.findAll().stream()
-                .filter(b -> b.getRoom().equals(room))
-                .filter(b -> b.getBedStatus() == BedStatus.VAGUE)
-                .filter(b -> bedOccupationRepo.findConflicts(b, request.dates(), tenantKey).isEmpty())
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("No available beds in shared room " + room.getNumber()));
-
-            BedOccupation bo = new BedOccupation();
-            bo.setBed(availableBed);
-            bo.setReserve(savedReserve);
-            bo.getOccupiedDays().addAll(request.dates());
-            bedOccupationRepo.save(bo);
-        }
-
-        guest.getReservation().add(savedReserve);
-        guestRepo.save(guest);
-
-        return savedReserve;
     }
 
-    @Transactional
-    public Reserve createReserveForAirbnb(ReservesionRequest request) {
-        String tenantKey = getCurrentTenantKey();
-        Tenant tenant = getCurrentTenant();
-        try {
-            Guest guest = findOrCreateAirbnbGuest(request.guestName());
-            
-            var room = roomRepo.findByNumberAndTenant_TenantKey(request.roomNumber(), tenantKey)
-                    .orElseThrow(() -> new ResourceNotFoundException("Quarto não encontrado: " + request.roomNumber()));
+    if (room.isSharedRoom() || room.isSharedBathroom()) {
+        List<Bed> availableBeds = findAvailableBedsForDatesInRoom(room, request.dates(), numberOfGuests);
+        
+        if (availableBeds.size() < numberOfGuests) {
+            throw new IllegalStateException("No available beds in shared room " + room.getNumber() + " for the selected dates");
+        }
+        
+        // Criar ocupação para cada cama (no caso, 1 cama)
+        for (Bed bed : availableBeds) {
+            BedOccupation bo = new BedOccupation();
+            bo.setBed(bed);
+            bo.setReserve(savedReserve);
+            bo.getOccupiedDays().addAll(request.dates());
+            bo.setTenant(bed.getTenant());
+            bedOccupationRepo.save(bo);
+        }
+    }
 
-            Reserve reserve = new Reserve();
-            reserve.setReservedDays(request.dates());
-            reserve.setReserveStatus(ReserveStatus.CONFIRMED);
-            reserve.setTenant(getCurrentTenant());
-            reserve.getGuest().add(guest);
-            reserve.getRooms().add(room);
-            
-            reserve.setInitialValue(room.getPrice());
-            reserve.setUseCustomValue(false);
-            
-            reserve.calculateTotalValue();
+    guest.getReservation().add(savedReserve);
+    guestRepo.save(guest);
 
-            Reserve savedReserve = reserveRepo.save(reserve);
+    return savedReserve;
+}
 
-            if (room.isExclusiveRoom() || room.isSharedBathroom() || room.isStudio() || room.isSuite()) {
-                boolean conflit = roomOccupationRepo.findAll().stream()
-                    .filter(ro -> ro.getRoom().equals(room))
-                    .anyMatch(ro -> ro.getOccupiedDays().stream().anyMatch(request.dates()::contains));
-                    
-                if (conflit) {
-                    throw new IllegalStateException("Quarto " + room.getNumber() + " já está reservado para estas datas.");
-                }
+   @Transactional
+public Reserve createReserveForAirbnb(ReservesionRequest request) {
+    String tenantKey = getCurrentTenantKey();
+    Tenant tenant = getCurrentTenant();
+    try {
+        Guest guest = findOrCreateAirbnbGuest(request.guestName());
+        
+        var room = roomRepo.findByNumberAndTenant_TenantKey(request.roomNumber(), tenantKey)
+                .orElseThrow(() -> new ResourceNotFoundException("Quarto não encontrado: " + request.roomNumber()));
 
-                RoomOccupation ro = new RoomOccupation();
-                ro.setRoom(room);
-                ro.setReserve(savedReserve);
-                ro.getOccupiedDays().addAll(request.dates());
-                ro.setTenant(room.getTenant());
-                roomOccupationRepo.save(ro);
+        // Airbnb também é 1 hóspede = 1 cama
+        int numberOfGuests = 1;
+        validateDatesAvailability(room, request.dates(), numberOfGuests);
+
+        Reserve reserve = new Reserve();
+        reserve.setReservedDays(request.dates());
+        reserve.setReserveStatus(ReserveStatus.CONFIRMED);
+        reserve.setTenant(getCurrentTenant());
+        reserve.getGuest().add(guest);
+        reserve.getRooms().add(room);
+        
+        reserve.setDailyRate(room.getPrice());
+        reserve.setUseCustomAmount(false);
+        
+        reserve.calculateTotalAmount();
+
+        Reserve savedReserve = reserveRepo.save(reserve);
+
+        if (room.isExclusiveRoom() || room.isStudio() || room.isSuite()) {
+            boolean conflit = roomOccupationRepo.findAll().stream()
+                .filter(ro -> ro.getRoom().equals(room))
+                .anyMatch(ro -> ro.getOccupiedDays().stream().anyMatch(request.dates()::contains));
+                
+            if (conflit) {
+                throw new IllegalStateException("Quarto " + room.getNumber() + " já está reservado para estas datas.");
             }
 
-            if (room.isSharedRoom()) {
-                Bed availableBed = bedRepo.findAll().stream()
-                    .filter(b -> b.getRoom().equals(room))
-                    .filter(b -> bedOccupationRepo.findConflicts(b, request.dates(), tenantKey).isEmpty())
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalStateException("Nenhuma cama disponível no quarto compartilhado " + room.getNumber()));
+            RoomOccupation ro = new RoomOccupation();
+            ro.setRoom(room);
+            ro.setReserve(savedReserve);
+            ro.getOccupiedDays().addAll(request.dates());
+            ro.setTenant(room.getTenant());
+            roomOccupationRepo.save(ro);
+        }
 
+        if (room.isSharedRoom() || room.isSharedBathroom()) {
+            List<Bed> availableBeds = findAvailableBedsForDatesInRoom(room, request.dates(), numberOfGuests);
+            
+            if (availableBeds.size() < numberOfGuests) {
+                throw new IllegalStateException("Nenhuma cama disponível no quarto compartilhado " + room.getNumber());
+            }
+
+            for (Bed bed : availableBeds) {
                 BedOccupation bo = new BedOccupation();
-                bo.setBed(availableBed);
+                bo.setBed(bed);
                 bo.setReserve(savedReserve);
                 bo.getOccupiedDays().addAll(request.dates());
                 bo.setTenant(tenant);
                 bedOccupationRepo.save(bo);
             }
-
-            guest.getReservation().add(savedReserve);
-            guestRepo.save(guest);
-
-            return savedReserve;
-
-        } catch (Exception e) {
-            throw new RuntimeException("Falha na criação de reserva Airbnb: " + e.getMessage(), e);
         }
+        guest.getReservation().add(savedReserve);
+        guestRepo.save(guest);
+        return savedReserve;
+
+    } catch (Exception e) {
+        throw new RuntimeException("Falha na criação de reserva Airbnb: " + e.getMessage(), e);
     }
+}
 
     private Guest findOrCreateAirbnbGuest(String guestName) {
         String tenantKey = getCurrentTenantKey();
@@ -416,55 +480,60 @@ public class ReserveService {
         return reserve;
     }
 
+    // CORRIGIDO: usando setCustomTotalAmount e setUseCustomAmount
     public Reserve setCustomValue(Long reserveId, BigDecimal customValue) {
         Reserve reserve = findById(reserveId);
-        reserve.setCustomValue(customValue);
-        reserve.setUseCustomValue(true);
+        reserve.setCustomTotalAmount(customValue);
+        reserve.setUseCustomAmount(true);
+        reserve.calculateTotalAmount();
         return reserveRepo.save(reserve);
     }
 
+    // CORRIGIDO: usando setCustomTotalAmount e calculateTotalAmount
     public Reserve setAutoValue(Long reserveId) {
         Reserve reserve = findById(reserveId);
-        reserve.setUseCustomValue(false);
-        reserve.setCustomValue(null);
-        reserve.calculateTotalValue();
+        reserve.setUseCustomAmount(false);
+        reserve.setCustomTotalAmount(null);
+        reserve.calculateTotalAmount();
         return reserveRepo.save(reserve);
     }
 
+    // CORRIGIDO: usando setExtraGuestDailyFee e calculateTotalAmount
     public Reserve updateExtraGuestFee(Long reserveId, BigDecimal newFee) {
         Reserve reserve = findById(reserveId);
-        reserve.setExtraGuestFee(newFee);
-        reserve.calculateTotalValue();
+        reserve.setExtraGuestDailyFee(newFee);
+        reserve.calculateTotalAmount();
         return reserveRepo.save(reserve);
     }
 
+    // CORRIGIDO: usando os getters e métodos novos
     public Map<String, Object> getValueDetails(Long reserveId) {
         Reserve reserve = findById(reserveId);
         
         Map<String, Object> details = new HashMap<>();
         details.put("reserveId", reserve.getId());
-        details.put("roomBaseValue", reserve.getInitialValue());
+        details.put("roomBaseValue", reserve.getDailyRate());
         details.put("numberOfDays", reserve.getNumberOfDays());
         details.put("numberOfGuests", reserve.getGuest().size());
         details.put("numberOfExtraGuests", reserve.getNumberOfExtraGuests());
-        details.put("extraGuestFee", reserve.getExtraGuestFee());
-        details.put("useCustomValue", reserve.getUseCustomValue());
-        details.put("customValue", reserve.getCustomValue());
-        details.put("calculatedTotal", reserve.calculateTotalValue());
+        details.put("extraGuestFee", reserve.getExtraGuestDailyFee());
+        details.put("useCustomValue", reserve.getUseCustomAmount());
+        details.put("customValue", reserve.getCustomTotalAmount());
+        details.put("calculatedTotal", reserve.calculateTotalAmount());
         
-        if (Boolean.FALSE.equals(reserve.getUseCustomValue())) {
-            BigDecimal baseValue = reserve.getInitialValue() != null ? reserve.getInitialValue() : BigDecimal.ZERO;
+        if (Boolean.FALSE.equals(reserve.getUseCustomAmount())) {
+            BigDecimal baseValue = reserve.getDailyRate() != null ? reserve.getDailyRate() : BigDecimal.ZERO;
             int numberOfDays = reserve.getNumberOfDays();
             int extraGuests = reserve.getNumberOfExtraGuests();
             
             BigDecimal dailyTotal = baseValue.multiply(BigDecimal.valueOf(numberOfDays));
-            BigDecimal extraFees = reserve.getExtraGuestFee().multiply(BigDecimal.valueOf(extraGuests * numberOfDays));
+            BigDecimal extraFees = reserve.getExtraGuestDailyFee().multiply(BigDecimal.valueOf(extraGuests * numberOfDays));
             
             details.put("calculationBreakdown", Map.of(
                 "dailyTotal", dailyTotal,
                 "extraFees", extraFees,
                 "formula", "(" + baseValue + " × " + numberOfDays + ") + (" + 
-                        reserve.getExtraGuestFee() + " × " + extraGuests + " × " + numberOfDays + ")"
+                        reserve.getExtraGuestDailyFee() + " × " + extraGuests + " × " + numberOfDays + ")"
             ));
         }
         
@@ -483,7 +552,7 @@ public class ReserveService {
         }
 
         reserve.setReservedDays(newDates);
-        reserve.calculateTotalValue();
+        reserve.calculateTotalAmount();
         updateOccupations(reserve, newDates);
 
         return reserveRepo.save(reserve);
@@ -537,6 +606,7 @@ public class ReserveService {
         return cancelReserve(reserve.getId());
     }
 
+    // CORRIGIDO: usando setDailyRate e calculateTotalAmount
     public Reserve addRoom(Long reserveId, Integer roomNumber) {
         String tenantKey = getCurrentTenantKey();
         Reserve reserve = findById(reserveId);
@@ -549,8 +619,8 @@ public class ReserveService {
         reserve.getRooms().add(room);
         
         if (reserve.getRooms().size() == 1) {
-            reserve.setInitialValue(room.getPrice());
-            reserve.calculateTotalValue();
+            reserve.setDailyRate(room.getPrice());
+            reserve.calculateTotalAmount();
         }
         
         reserveRepo.save(reserve);
@@ -559,6 +629,7 @@ public class ReserveService {
         return reserve;
     }
 
+    // CORRIGIDO: usando setDailyRate e calculateTotalAmount
     public Reserve removeRoom(Long reserveId, Integer roomNumber) {
         String tenantKey = getCurrentTenantKey();
         Reserve reserve = findById(reserveId);
@@ -571,8 +642,8 @@ public class ReserveService {
         reserve.getRooms().remove(room);
         
         if (reserve.getRooms().isEmpty()) {
-            reserve.setInitialValue(BigDecimal.ZERO);
-            reserve.calculateTotalValue();
+            reserve.setDailyRate(BigDecimal.ZERO);
+            reserve.calculateTotalAmount();
         }
         
         reserveRepo.save(reserve);
@@ -595,7 +666,7 @@ public class ReserveService {
         updatedDates.add(newDate);
         reserve.setReservedDays(updatedDates);
 
-        reserve.calculateTotalValue();
+        reserve.calculateTotalAmount();
         updateOccupationsForNewDate(reserve, newDate);
 
         Reserve updatedReserve = reserveRepo.save(reserve);
@@ -623,9 +694,9 @@ public class ReserveService {
     private void validateAvailability(Reserve reserve, LocalDate newDate) {
         Room room = reserve.getRooms().iterator().next();
         
-        if (room.isExclusiveRoom() || room.isSharedBathroom() || room.isStudio() || room.isSuite()) {
+        if (room.isExclusiveRoom() || room.isStudio() || room.isSuite()) {
             validateExclusiveRoomAvailability(room, newDate, reserve.getId());
-        } else if (room.isSharedRoom()) {
+        } else if (room.isSharedRoom() || room.isSharedBathroom()) {
             validateSharedRoomAvailability(room, newDate, reserve.getId());
         } else {
             throw new IllegalStateException("Unknown room type for room: " + room.getNumber());
@@ -664,9 +735,9 @@ public class ReserveService {
     private void updateOccupationsForNewDate(Reserve reserve, LocalDate newDate) {
         Room room = reserve.getRooms().iterator().next();
 
-        if (room.isExclusiveRoom() || room.isSharedBathroom() || room.isStudio() || room.isSuite()) {
+        if (room.isExclusiveRoom() || room.isStudio() || room.isSuite()) {
             updateRoomOccupationForNewDate(reserve, newDate);
-        } else if (room.isSharedRoom()) {
+        } else if (room.isSharedRoom() || room.isSharedBathroom()) {
             updateBedOccupationForNewDate(reserve, newDate);
         }
     }
@@ -718,10 +789,10 @@ public class ReserveService {
                 .orElseThrow(() -> new IllegalStateException("No available beds found for date: " + date));
     }
 
-    public Reserve removeDate(Long reserveId,  LocalDate date) {
+    public Reserve removeDate(Long reserveId, LocalDate date) {
         Reserve reserve = findById(reserveId);
         reserve.getReservedDays().remove(date);
-        reserve.calculateTotalValue();
+        reserve.calculateTotalAmount();
         reserveRepo.save(reserve);    
         return reserve;
     }
@@ -745,7 +816,7 @@ public class ReserveService {
             updatedDates.add(newDate);
         }
         reserve.setReservedDays(updatedDates);
-        reserve.calculateTotalValue();
+        reserve.calculateTotalAmount();
         for (LocalDate newDate : newDates.dates()) {
             updateOccupationsForNewDate(reserve, newDate);
         }
@@ -757,7 +828,7 @@ public class ReserveService {
         String tenantKey = getCurrentTenantKey();
         removeOccupations(reserve);
         Room room = reserve.getRooms().iterator().next();
-        if (room.isExclusiveRoom() || room.isSharedBathroom() || room.isStudio() || room.isSuite()) {
+        if (room.isExclusiveRoom() || room.isStudio() || room.isSuite()) {
             boolean conflict = roomOccupationRepo.findAll().stream()
                     .filter(ro -> ro.getRoom().equals(room))
                     .anyMatch(ro -> ro.getOccupiedDays().stream().anyMatch(newDates::contains));
@@ -773,7 +844,7 @@ public class ReserveService {
             roomOccupationRepo.save(ro);
         }
 
-        if (room.isSharedRoom()) {
+        if (room.isSharedRoom() || room.isSharedBathroom()) {
             Bed availableBed = bedRepo.findAll().stream()
                     .filter(b -> b.getRoom().equals(room))
                     .filter(b -> bedOccupationRepo.findConflicts(b, newDates, tenantKey).isEmpty())
@@ -787,6 +858,7 @@ public class ReserveService {
         }
     }
 
+    @Transactional
     public Reserve checkIn(Long id) {
         String tenantKey = getCurrentTenantKey();        
         Reserve reserva = findById(id);
@@ -794,14 +866,15 @@ public class ReserveService {
 
         var rooms = reserva.getRooms();
         for (Room room : rooms) {
-            if (room.isExclusiveRoom() || room.isSharedBathroom() || room.isStudio() || room.isSuite()) {
+            if (room.isExclusiveRoom() || room.isStudio() || room.isSuite()) {
                 room.setRoomStatus(RoomStatus.OCCUPIED);
-            } else if (room.isSharedRoom()) {
-                BedOccupation bedOccupation = bedOccupationRepo.findByReserveAndRoom(reserva, room, tenantKey)
-                        .orElseThrow(() -> new IllegalStateException("BedOccupation not found for reserve " + id + " in room " + room.getNumber()));
-                Bed bed = bedOccupation.getBed();
-                bed.setBedStatus(BedStatus.OCCUPIED);
-                bedRepo.save(bed);
+            } else if (room.isSharedRoom() || room.isSharedBathroom()) {
+                List<BedOccupation> bedOccupations = bedOccupationRepo.findByReserveAndTenant_TenantKey(reserva, tenantKey);
+                for (BedOccupation bo : bedOccupations) {
+                    Bed bed = bo.getBed();
+                    bed.setBedStatus(BedStatus.OCCUPIED);
+                    bedRepo.save(bed);
+                }
 
                 boolean allBedsOccupied = room.getBeds().stream()
                         .allMatch(b -> b.getBedStatus() == BedStatus.OCCUPIED);
@@ -823,9 +896,9 @@ public class ReserveService {
 
         var rooms = reserve.getRooms();
         for (Room room : rooms) {
-            if (room.isExclusiveRoom() || room.isSharedBathroom() || room.isStudio() || room.isSuite()) {
+            if (room.isExclusiveRoom() || room.isStudio() || room.isSuite()) {
                 room.setRoomStatus(RoomStatus.VAGUE);
-            } else if (room.isSharedRoom()) {
+            } else if (room.isSharedRoom() || room.isSharedBathroom()) {
                 Bed reservedBed = findBedForReserveInRoom(reserve, room);
                 if (reservedBed != null) {
                     reservedBed.setBedStatus(BedStatus.VAGUE);
@@ -889,7 +962,7 @@ public class ReserveService {
         String message;
         String roomTypeDescription = room.getRoomTypeDescription();
         
-        if (room.isAnyExclusiveType()) {
+        if (room.isAnyExclusiveType() || room.isStudio() || room.isSuite()) {
             boolean hasConflict = roomOccupationRepo.existsConflictForRoomAndDates(room, requestedDates);
             
             isAvailable = !hasConflict;
@@ -897,7 +970,7 @@ public class ReserveService {
                 String.format("%s não disponível para as datas solicitadas", roomTypeDescription) : 
                 String.format("%s disponível", roomTypeDescription);
                 
-        } else if (room.isSharedRoom()) {
+        } else if (room.isSharedRoom() || room.isSharedBathroom()) {
             long availableBeds = bedRepo.findByRoomAndBedStatusAndTenant_TenantKey(room, BedStatus.VAGUE, tenantKey).stream()
                     .filter(bed -> bedOccupationRepo.isBedAvailableForDates(bed, requestedDates, tenantKey))
                     .count();
@@ -1000,24 +1073,26 @@ public class ReserveService {
         }
     }
     
+    // CORRIGIDO: usando os setters novos
     public Reserve reserveUpdateExtra(Long id, UpdateDataReserveDTO entity) {
         Reserve reserve = findById(id);
         updateData(reserve, entity);
         return reserveRepo.save(reserve);
     }
 
+    // CORRIGIDO: usando os setters novos
     private void updateData(Reserve entity, UpdateDataReserveDTO obj) {
-        if(obj.customValue() != null) {
-            entity.setCustomValue(obj.customValue());
+        if (obj.customValue() != null) {
+            entity.setCustomTotalAmount(obj.customValue());
         }
         if (obj.extraGuestFee() != null) {
-            entity.setExtraGuestFee(obj.extraGuestFee());
+            entity.setExtraGuestDailyFee(obj.extraGuestFee());
         }
         if (obj.useCustomValue() != null) {
-            entity.setUseCustomValue(obj.useCustomValue());
+            entity.setUseCustomAmount(obj.useCustomValue());
         }
         if (obj.initialValue() != null) {
-            entity.setInitialValue(obj.initialValue());
+            entity.setDailyRate(obj.initialValue());
         }
     }
 }

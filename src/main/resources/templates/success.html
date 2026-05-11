@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assinatura confirmada - Elohostel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(145deg, #0b2b26, #144d46);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            text-align: center;
+            padding: 1rem;
+        }
+        .card {
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(8px);
+            padding: 2rem;
+            border-radius: 2rem;
+            max-width: 500px;
+            width: 100%;
+            border: 1px solid #ffb347;
+        }
+        h1 {
+            font-size: 2.2rem;
+            margin-bottom: 1rem;
+        }
+        .check {
+            font-size: 5rem;
+            margin: 1rem 0;
+        }
+        p {
+            font-size: 1.2rem;
+            margin: 1rem 0;
+            line-height: 1.4;
+        }
+        .btn {
+            display: inline-block;
+            background: #ffb347;
+            color: #1e2a36;
+            padding: 0.8rem 1.8rem;
+            border-radius: 60px;
+            text-decoration: none;
+            font-weight: bold;
+            margin-top: 1.5rem;
+            transition: 0.2s;
+        }
+        .btn:hover {
+            background: #ffa01e;
+            transform: scale(1.02);
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="check">✅</div>
+    <h1>Assinatura criada com sucesso!</h1>
+    <p>Sua assinatura do Elohostel foi configurada.<br>
+    Em instantes você receberá a confirmação por e‑mail.</p>
+    <p>🔐 Seu plano já está ativo (ou em processamento).<br>
+    <small>O Mercado Pago enviará a confirmação de pagamento.</small></p>
+    <a href="/dashboard" class="btn">Ir para o painel</a>
+</div>
+</body>
+</html>

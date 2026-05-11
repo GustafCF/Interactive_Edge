@@ -4,12 +4,10 @@ spring:
 
   datasource:
     url: jdbc:h2:file:C:/Interactive_Edge/data/iedb;DB_CLOSE_ON_EXIT=FALSE;AUTO_RECONNECT=TRUE
+    # url: jdbc:h2:file:/opt/ie/data/iedb;DB_CLOSE_ON_EXIT=FALSE;AUTO_RECONNECT=TRUE
     driverClassName: org.h2.Driver
     username: userAdmin
     password: admin!3@
-
-  # profiles:
-  #   active: test
 
   h2:
     console:
@@ -31,8 +29,8 @@ spring:
 
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 10MB
+      max-file-size: 50MB
+      max-request-size: 50MB
 
   mail:
     host: smtp.gmail.com
@@ -47,7 +45,7 @@ spring:
             enable: true
 
 app:
-  base-url: http:localhost:8080
+  base-url: http://54.232.134.188:8080
 
 server:
   address: 0.0.0.0
@@ -56,5 +54,6 @@ server:
     enabled: false
 
 mercado-pago:
-  access-token: TEST
+  access-token: TEST-3307771549060839-050221-af8de5cebb8308880d846fe8c79010a9-3126364890
+  public-key: TEST-cd9af06f-8cb7-41c5-8681-4392f01264ad
   sandbox: true

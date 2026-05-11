@@ -6,9 +6,8 @@ public class AirbnbBidirectionalRequest {
     private String propertyName;
     private String calendarName;
     private Integer roomNumber;
-    private Long roomId; // ✅ NOVO: Para associar diretamente com Room
+    private Long roomId;
 
-    // Construtores
     public AirbnbBidirectionalRequest() {}
 
     public AirbnbBidirectionalRequest(String airbnbIcalUrl, String propertyId, String propertyName) {

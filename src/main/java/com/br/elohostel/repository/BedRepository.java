@@ -94,4 +94,23 @@ public interface BedRepository extends JpaRepository<Bed, Long> {
     boolean isBedAvailable(@Param("bedId") Long bedId, 
                          @Param("dates") Set<LocalDate> dates,
                          @Param("tenantKey") String tenantKey);
+
+    @Query("SELECT b.number FROM Bed b WHERE b.room.id = :roomId AND b.tenant.tenantKey = :tenantKey ORDER BY b.number")
+    List<Integer> findAllBedNumbersByRoomAndTenant(@Param("roomId") Long roomId, @Param("tenantKey") String tenantKey);
+
+    @Query("SELECT MAX(b.number) FROM Bed b WHERE b.room.id = :roomId AND b.tenant.tenantKey = :tenantKey")
+       Integer findMaxBedNumberByRoomAndTenant(@Param("roomId") Long roomId, @Param("tenantKey") String tenantKey);   
+
+       @Query("SELECT COUNT(b) FROM Bed b WHERE b.room = :room " +
+       "AND b.bedStatus = com.br.elohostel.model.enums.BedStatus.VAGUE " +
+       "AND NOT EXISTS (" +
+       "   SELECT bo FROM BedOccupation bo WHERE bo.bed = b " +
+       "   AND bo.tenant.tenantKey = :tenantKey " +
+       "   AND EXISTS (SELECT 1 FROM bo.occupiedDays od WHERE od IN :dates)" +
+       ")")
+       Long countAvailableBedsForRoomAndDates(@Param("room") Room room,
+                                          @Param("dates") Set<LocalDate> dates,
+                                          @Param("tenantKey") String tenantKey);
+
+       long countByRoomAndTenant_TenantKey(Room room, String tenantKey);
 }

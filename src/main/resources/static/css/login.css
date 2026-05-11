@@ -74,6 +74,27 @@ body {
     padding: 2rem 0;
 }
 
+/* Logo container styles */
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.logo-image {
+    height: 40px;  /* Ajuste conforme necessário */
+    width: auto;
+    max-height: 50px;
+    object-fit: contain;
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: bold;
+    display: inline-block;
+    margin: 0;  /* Remove margem padrão do h1 */
+}
+
 /* Footer */
 .footer {
     background-color: rgb(253, 191, 74);
@@ -414,5 +435,27 @@ body {
     
     .modal-content {
         margin: 20% auto;
+    }
+
+     .logo-image {
+        height: 30px;
+    }
+    
+    .logo {
+        font-size: 1.2rem;
+    }
+
+    @media (max-width: 480px) {
+        .logo-image {
+            height: 25px;
+        }
+        
+        .logo {
+            font-size: 1rem;
+        }
+        
+        .logo-container {
+            gap: 10px;
+        }
     }
 }

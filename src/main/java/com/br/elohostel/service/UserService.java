@@ -1,5 +1,6 @@
 package com.br.elohostel.service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -12,6 +13,7 @@ import com.br.elohostel.model.Role;
 import com.br.elohostel.model.Tenant;
 import com.br.elohostel.model.User;
 import com.br.elohostel.model.dtos.CreateUserDto;
+import com.br.elohostel.model.enums.SubscriptionStatus;
 import com.br.elohostel.repository.RoleRepository;
 import com.br.elohostel.repository.TenantRepository;
 import com.br.elohostel.repository.UserRepository;
@@ -59,11 +61,11 @@ public class UserService {
 
     @Transactional
     public User register(CreateUserDto dto) {
-        Optional<Role> role = roleRepo.findById(1L);
+        Optional<Role> role = roleRepo.findById(3L);
         String uuid = UUID.randomUUID().toString();
         String tenantKey = "TNT_" + uuid + "_" + dto.email(); 
         String tenantName = "TNT_US" + dto.name();
-        Tenant t = new Tenant(tenantKey, tenantName);
+        Tenant t = new Tenant(tenantKey, tenantName, SubscriptionStatus.TRIAL, LocalDateTime.now());
         tenantRepo.save(t);
         User u = new User();
         u.setName(dto.name());
@@ -126,6 +128,26 @@ public class UserService {
         }
         if (newData.getPhone() != null && !newData.getPhone().isBlank()) {
             existing.setPhone(newData.getPhone());
+        }
+        
+        // NOVOS CAMPOS - Adicione esta parte!
+        if (newData.getEstablishmentName() != null) {
+            existing.setEstablishmentName(newData.getEstablishmentName());
+        }
+        if (newData.getEstablishmentAddress() != null) {
+            existing.setEstablishmentAddress(newData.getEstablishmentAddress());
+        }
+        if (newData.getEstablishmentPhone() != null) {
+            existing.setEstablishmentPhone(newData.getEstablishmentPhone());
+        }
+        if (newData.getEstablishmentResponsible() != null) {
+            existing.setEstablishmentResponsible(newData.getEstablishmentResponsible());
+        }
+        if (newData.getEstablishmentLogo() != null) {
+            existing.setEstablishmentLogo(newData.getEstablishmentLogo());
+        }
+        if (newData.getEstablishmentWelcomeMessage() != null) {
+            existing.setEstablishmentWelcomeMessage(newData.getEstablishmentWelcomeMessage());
         }
     }
 }

@@ -41,31 +41,53 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-                .cors(Customizer.withDefaults())
-                .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/h2-console/**", "/","/login","/calendario","/room-calendar", "/room-calendar/**", "/guest","/layout","/reserve","/room", "/static/**", "/js/**", "/css/**","/images/**", "/airbnb-setup", "/calendar-airbnb-setup", "/funcionarios", "home", "/teste").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/forgot-password", "/auth/reset-password").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/airbnb/connections", "/api/booking/health", "/api/booking/connections", "/connections/{propertyId}").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/airbnb/connect", "/api/airbnb/sync-now", "/api/airbnb/setup-calendar-bidirectional", "/api/booking/setup-bidirectional", "/api/booking/sync-now/{propertyId}", "/api/booking/sync-now/all", "/api/booking/setup-calendar-bidirectional", "/api/booking/test-connection", "/us/register").permitAll()
-                        .requestMatchers(HttpMethod.DELETE, "/api/airbnb/connections/{id}", "/api/booking/connections/{propertyId}", "/api/financial/delete/{id}").permitAll()
-                        .requestMatchers(HttpMethod.PUT, "/api/airbnb/connections/{id}", "/api/booking/connections/{propertyId}/deactivate", "/api/booking/connections/{propertyId}/activate", "/reserve/up/{id}").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/airbnb/setup-bidirectional").permitAll()
-                        .requestMatchers("/api/airbnb/sync/**", "/api/airbnb/connection/**").permitAll()
-                        .requestMatchers("/api/ical/**", "/api/booking/**").permitAll()
-                        .requestMatchers("/api/airbnb/**").permitAll()
-                        .requestMatchers("/api/ical/**").permitAll()
-                        .requestMatchers("/api/calendar/**").permitAll()
-                        .requestMatchers("/api/plans/**", "/api/subscriptions/**", "/api/webhooks/mercadopago/**").permitAll()
-                        .anyRequest().authenticated())
-                .csrf(csrf -> csrf.disable())
-                .headers(headers -> headers
-                        .frameOptions(frameOptions -> frameOptions.disable()))
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
-        return http.build();
-    }
+public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    http
+        .cors(Customizer.withDefaults())
+        .authorizeHttpRequests(authorize -> authorize
+            // REGRAS ESPECÍFICAS PRIMEIRO
+            .requestMatchers(HttpMethod.POST, "/mp/subscription/create").permitAll()
+            .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/forgot-password", "/auth/reset-password").permitAll()
+            .requestMatchers(HttpMethod.GET, "/mp/ping").permitAll()
+            
+            // REGRAS DE PÁGINAS E STATIC
+            .requestMatchers("/h2-console/**", "/", "/login", "/calendario", "/room-calendar", 
+                "/room-calendar/**", "/guest", "/layout", "/reserve", "/room", 
+                "/static/**", "/js/**", "/css/**", "/images/**", "/airbnb-setup", 
+                "/calendar-airbnb-setup", "/funcionarios", "home", "/teste", 
+                "/success", "/dashboard").permitAll()
+            
+            // REGRAS DE API PÚBLICAS
+            .requestMatchers("/api/plans/**", "/api/subscriptions/**", "/api/webhooks/mercadopago/**", 
+                "/mp/**", "/api/airbnb/**", "/api/booking/**", "/api/ical/**", 
+                "/api/calendar/**").permitAll()
+            
+            // REGRAS GENÉRICAS POR MÉTODO
+            .requestMatchers(HttpMethod.GET, "/api/airbnb/connections", "/api/booking/health", 
+                "/api/booking/connections", "/connections/{propertyId}").permitAll()
+            
+            .requestMatchers(HttpMethod.POST, "/api/airbnb/connect", "/api/airbnb/sync-now", 
+                "/api/airbnb/setup-calendar-bidirectional", "/api/booking/setup-bidirectional", 
+                "/api/booking/sync-now/{propertyId}", "/api/booking/sync-now/all", 
+                "/api/booking/setup-calendar-bidirectional", "/api/booking/test-connection", 
+                "/us/register", "/subscription/plan/create").permitAll()
+            
+            .requestMatchers(HttpMethod.DELETE, "/api/airbnb/connections/{id}", 
+                "/api/booking/connections/{propertyId}", "/api/financial/delete/{id}").permitAll()
+            
+            .requestMatchers(HttpMethod.PUT, "/api/airbnb/connections/{id}", 
+                "/api/booking/connections/{propertyId}/deactivate", 
+                "/api/booking/connections/{propertyId}/activate", "/reserve/up/{id}").permitAll()
+            
+            .anyRequest().authenticated()
+        )
+        .csrf(csrf -> csrf.disable())
+        .headers(headers -> headers.frameOptions(frameOptions -> frameOptions.disable()))
+        .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
+        .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+    
+    return http.build();
+}
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {

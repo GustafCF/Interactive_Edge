@@ -20,7 +20,5 @@ public class MercadoPagoSdkConfig {
     @PostConstruct
     public void init() {
         MercadoPagoConfig.setAccessToken(accessToken);
-        log.info("Test 1: {}", accessToken);
-        log.info("Test 2: "+ accessToken.toString());
     }
 }

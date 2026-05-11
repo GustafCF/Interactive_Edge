@@ -3,319 +3,455 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teste Integração Mercado Pago</title>
+    <title>Elohostel - Assinatura</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
-        .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h1, h2 { color: #333; }
-        form, .section { margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background: #fafafa; }
-        label { display: block; margin: 10px 0 5px; font-weight: bold; }
-        input, select, button { width: 100%; padding: 8px; margin-bottom: 10px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; }
-        button { background-color: #007bff; color: white; border: none; cursor: pointer; font-weight: bold; }
-        button:hover { background-color: #0056b3; }
-        .result { background: #e9ecef; padding: 10px; border-radius: 4px; font-family: monospace; white-space: pre-wrap; margin-top: 10px; }
-        .error { color: red; }
-        .success { color: green; }
-        hr { margin: 20px 0; }
-        .inline-group { display: flex; gap: 10px; }
-        .inline-group > div { flex: 1; }
-        .token-help { font-size: 12px; color: #666; margin-top: -8px; margin-bottom: 10px; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 2rem;
+        }
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .subtitulo {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        .planos {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .plano {
+            background: white;
+            border-radius: 20px;
+            padding: 1.5rem;
+            width: 280px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 3px solid transparent;
+            position: relative;
+        }
+        .plano:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .plano.selecionado {
+            border-color: #ff914d;
+            background: linear-gradient(to bottom, white, #fff5ec);
+        }
+        .plano h3 {
+            font-size: 1.6rem;
+            margin: 1rem 0 0.5rem;
+            color: #333;
+        }
+        .preco {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #ff914d;
+            margin: 1rem 0;
+        }
+        .preco small {
+            font-size: 0.9rem;
+            font-weight: normal;
+        }
+        .periodo {
+            color: #666;
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+        }
+        .detalhes {
+            text-align: left;
+            margin: 1rem 0;
+            padding: 0 1rem;
+        }
+        .detalhe {
+            font-size: 0.85rem;
+            padding: 0.3rem 0;
+            color: #555;
+        }
+        .detalhe:before {
+            content: "✓ ";
+            color: #ff914d;
+            font-weight: bold;
+        }
+        .badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #ff914d;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+        .form-card {
+            background: white;
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 2rem;
+            border-radius: 24px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .grupo {
+            margin-bottom: 1.2rem;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            color: #333;
+        }
+        input, select {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #ff914d;
+        }
+        button {
+            background: linear-gradient(135deg, #ff914d, #ff6b35);
+            color: white;
+            border: none;
+            width: 100%;
+            padding: 1rem;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-top: 0.5rem;
+        }
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .erro {
+            background: #fee;
+            color: #c33;
+            padding: 0.8rem;
+            border-radius: 12px;
+            margin-top: 1rem;
+            display: none;
+            text-align: center;
+            border-left: 4px solid #c33;
+        }
+        .carregando {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: girar 0.6s linear infinite;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        @keyframes girar {
+            to { transform: rotate(360deg); }
+        }
+        .loading-spinner {
+            text-align: center;
+            padding: 2rem;
+            color: white;
+        }
+        footer {
+            text-align: center;
+            margin-top: 2rem;
+            color: white;
+            font-size: 0.85rem;
+        }
+        @media (max-width: 768px) {
+            .planos {
+                flex-direction: column;
+                align-items: center;
+            }
+            .plano {
+                width: 100%;
+                max-width: 300px;
+            }
+        }
     </style>
-    <script src="https://sdk.mercadopago.com/js/v2"></script>
 </head>
 <body>
 <div class="container">
-    <h1>🧪 Teste de Integração com Mercado Pago</h1>
-    <p>Use este frontend para testar os endpoints do backend Spring Boot.</p>
-
-    <hr>
-
-    <!-- Seção: Criar Plano -->
-    <div class="section">
-        <h2>📦 Criar Plano</h2>
-        <form id="createPlanForm">
-            <label>Nome:</label>
-            <input type="text" id="planName" required placeholder="Plano Mensal">
-
-            <label>Descrição:</label>
-            <input type="text" id="planDesc" placeholder="Descrição opcional">
-
-            <label>Preço (R$):</label>
-            <input type="number" id="planPrice" step="0.01" required value="99.90">
-
-            <label>Moeda:</label>
-            <input type="text" id="planCurrency" required value="BRL">
-
-            <label>Frequência (número):</label>
-            <input type="number" id="planFrequency" required value="1">
-
-            <label>Tipo de Frequência:</label>
-            <select id="planFreqType" required>
-                <option value="months">Meses</option>
-                <option value="days">Dias</option>
-            </select>
-
-            <button type="submit">Criar Plano</button>
-        </form>
-        <div id="createPlanResult" class="result"></div>
+    <div class="header">
+        <h1>🏨 Elohostel</h1>
+        <div class="subtitulo">Sistema completo para gestão de hostels</div>
     </div>
 
-    <hr>
-
-    <!-- Seção: Listar Planos -->
-    <div class="section">
-        <h2>📋 Listar Planos</h2>
-        <button id="listPlansBtn">Carregar Planos</button>
-        <div id="listPlansResult" class="result"></div>
-        <label>Selecionar Plano para Assinatura:</label>
-        <select id="planSelect"></select>
+    <div id="planosContainer" class="planos">
+        <div class="loading-spinner">📡 Carregando planos disponíveis...</div>
     </div>
 
-    <hr>
-
-    <!-- Seção: Gerar Card Token -->
-    <div class="section">
-        <h2>💳 Gerar Token de Cartão (Teste)</h2>
-        <p>Preencha os dados do cartão de teste e clique em "Gerar Token". O token será inserido automaticamente no campo abaixo.</p>
-        <form id="cardTokenForm">
-            <label>Número do Cartão:</label>
-            <input type="text" id="cardNumber" placeholder="5474 9254 3267 0366" value="5474925432670366">
-            
-            <div class="inline-group">
-                <div>
-                    <label>Validade (MM/AA):</label>
-                    <input type="text" id="cardExpiry" placeholder="11/30" value="11/30">
-                </div>
-                <div>
-                    <label>CVV:</label>
-                    <input type="text" id="cardCvv" placeholder="123" value="123">
-                </div>
-            </div>
-            
-            <label>Nome do Titular:</label>
-            <input type="text" id="cardholderName" placeholder="APRO" value="APRO">
-            
-            <label>CPF (somente números):</label>
-            <input type="text" id="cardholderCpf" placeholder="12345678909" value="12345678909">
-            
-            <button type="button" id="generateTokenBtn">🔑 Gerar Token</button>
-        </form>
-        <div id="tokenResult" class="result"></div>
+    <div class="form-card">
+        <div class="grupo">
+            <label>Seu nome completo *</label>
+            <input type="text" id="nome" placeholder="Ex: Ana Souza" autocomplete="name">
+        </div>
+        <div class="grupo">
+            <label>E-mail para pagamento *</label>
+            <input type="email" id="email" placeholder="contato@meuhostel.com" autocomplete="email">
+        </div>
+        <div class="grupo">
+            <label>Observação (opcional)</label>
+            <input type="text" id="observacao" placeholder="Alguma observação sobre a assinatura?">
+        </div>
+        <button id="btnAssinar">Assinar plano selecionado</button>
+        <div id="mensagemErro" class="erro"></div>
     </div>
 
-    <hr>
-
-    <!-- Seção: Criar Assinatura -->
-    <div class="section">
-        <h2>🔁 Criar Assinatura</h2>
-        <form id="createSubForm">
-            <label>ID do Plano (ou selecione acima):</label>
-            <input type="number" id="subPlanId" placeholder="ID do plano" required>
-
-            <label>E-mail do Pagador:</label>
-            <input type="email" id="payerEmail" required placeholder="cliente@email.com">
-
-            <label>Card Token:</label>
-            <input type="text" id="cardToken" required placeholder="Clique em 'Gerar Token'">
-            <div class="token-help">Ou cole um token manualmente.</div>
-
-            <button type="submit">Criar Assinatura</button>
-        </form>
-        <div id="createSubResult" class="result"></div>
-    </div>
-
-    <hr>
-
-    <!-- Seção: Cancelar Assinatura -->
-    <div class="section">
-        <h2>❌ Cancelar Assinatura</h2>
-        <form id="cancelSubForm">
-            <label>ID da Assinatura (local):</label>
-            <input type="number" id="subIdToCancel" required placeholder="Ex: 1">
-            <button type="submit">Cancelar Assinatura</button>
-        </form>
-        <div id="cancelSubResult" class="result"></div>
-    </div>
-
-    <hr>
-
-    <!-- Seção: Buscar Assinatura por ID -->
-    <div class="section">
-        <h2>🔍 Buscar Assinatura</h2>
-        <form id="getSubForm">
-            <label>ID da Assinatura (local):</label>
-            <input type="number" id="subIdToGet" required>
-            <button type="submit">Buscar</button>
-        </form>
-        <div id="getSubResult" class="result"></div>
-    </div>
-
+    <footer>
+        🔒 Pagamento seguro via Mercado Pago · Dados criptografados · Suporte 24/7
+    </footer>
 </div>
 
 <script>
-    const API_BASE = 'http://192.168.1.100:8080/api';
-    const MP_PUBLIC_KEY = 'TEST-98a40b8c-7d37-4db5-837d-78334a94e1ee'; 
-    const mp = new MercadoPago(MP_PUBLIC_KEY);
+    // ========= CONFIGURAÇÃO =========
+    const API_BASE = window.location.origin;
+    const API_PLANS = `${API_BASE}/api/plans`;
+    const API_SUBSCRIPTION = `${API_BASE}/mp/subscription/create`;
 
-    function showResult(elementId, data, isError = false) {
-        const el = document.getElementById(elementId);
-        el.innerHTML = '';
-        if (isError) {
-            el.innerHTML = `<div class="error">❌ Erro: ${data.message || data}</div>`;
-        } else {
-            el.innerHTML = `<div class="success">✅ Sucesso:</div><pre>${JSON.stringify(data, null, 2)}</pre>`;
+    // ========= VARIÁVEIS GLOBAIS =========
+    let planos = [];
+    let planoSelecionado = null;
+    let cardSelecionado = null;
+
+    // ========= FUNÇÕES =========
+    
+    // Carregar planos do backend
+    async function carregarPlanos() {
+        const container = document.getElementById('planosContainer');
+        container.innerHTML = '<div class="loading-spinner">📡 Carregando planos disponíveis...</div>';
+        
+        try {
+            const response = await fetch(API_PLANS);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            planos = await response.json();
+            
+            if (!planos || planos.length === 0) {
+                container.innerHTML = '<div class="loading-spinner">⚠️ Nenhum plano ativo encontrado. Contate o administrador.</div>';
+                return;
+            }
+            
+            renderizarPlanos(planos);
+            
+        } catch (error) {
+            console.error('Erro ao carregar planos:', error);
+            container.innerHTML = `<div class="loading-spinner">❌ Erro ao carregar planos: ${error.message}<br><br>
+                                    <small>Verifique se o backend está rodando em ${API_BASE}</small></div>`;
         }
     }
 
-    async function loadPlans() {
-        try {
-            const response = await fetch(`${API_BASE}/plans/all`);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const plans = await response.json();
-            const select = document.getElementById('planSelect');
-            select.innerHTML = '<option value="">-- Selecione um plano --</option>';
-            plans.forEach(plan => {
-                const option = document.createElement('option');
-                option.value = plan.id;
-                option.textContent = `${plan.name} - R$ ${plan.price} (${plan.frequency} ${plan.frequencyType})`;
-                select.appendChild(option);
-            });
-            showResult('listPlansResult', plans);
-        } catch (error) {
-            showResult('listPlansResult', { message: error.message }, true);
-        }
-    }
-
-    document.getElementById('listPlansBtn').addEventListener('click', loadPlans);
-    document.getElementById('planSelect').addEventListener('change', (e) => {
-        if (e.target.value) document.getElementById('subPlanId').value = e.target.value;
-    });
-
-    // Criar plano
-    document.getElementById('createPlanForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const data = {
-            name: document.getElementById('planName').value,
-            description: document.getElementById('planDesc').value,
-            price: parseFloat(document.getElementById('planPrice').value),
-            currency: document.getElementById('planCurrency').value,
-            frequency: parseInt(document.getElementById('planFrequency').value),
-            frequencyType: document.getElementById('planFreqType').value
-        };
-        try {
-            const response = await fetch(`${API_BASE}/plans/createPlan`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            if (!response.ok) throw new Error(`Erro ${response.status}: ${await response.text()}`);
-            const result = await response.json();
-            showResult('createPlanResult', result);
-            loadPlans();
-        } catch (error) {
-            showResult('createPlanResult', { message: error.message }, true);
-        }
-    });
-
-    // Gerar token usando mp.createCardToken
-    document.getElementById('generateTokenBtn').addEventListener('click', async () => {
-        const cardNumber = document.getElementById('cardNumber').value.replace(/\s/g, '');
-        const expiry = document.getElementById('cardExpiry').value;
-        const [expMonth, expYear] = expiry.split('/');
-        const cvv = document.getElementById('cardCvv').value;
-        const cardholderName = document.getElementById('cardholderName').value;
-        const cardholderCpf = document.getElementById('cardholderCpf').value;
-
-        if (!cardNumber || !expMonth || !expYear || !cvv || !cardholderName || !cardholderCpf) {
-            alert('Preencha todos os campos do cartão');
-            return;
-        }
-
-        const cardData = {
-            cardNumber: cardNumber,
-            expirationMonth: expMonth,
-            expirationYear: expYear,
-            securityCode: cvv,
-            cardholder: {
-                name: cardholderName,
-                identification: {
-                    type: 'CPF',
-                    number: cardholderCpf
+    // Renderizar planos na tela
+    function renderizarPlanos(planosList) {
+        const container = document.getElementById('planosContainer');
+        
+        container.innerHTML = planosList.map(plano => `
+            <div class="plano" data-plan-id="${plano.id}" data-plan-name="${plano.name}">
+                <div class="badge">${plano.frequency} ${plano.frequencyType === 'months' ? 'mês(es)' : 'dia(s)'}</div>
+                <h3>${formatarNomePlano(plano.name)}</h3>
+                <div class="preco">R$ ${plano.transactionAmount.toFixed(2)}</div>
+                <div class="periodo">por ${plano.frequency} ${plano.frequencyType === 'months' ? 'mês(es)' : 'dia(s)'}</div>
+                <div class="detalhes">
+                    ${plano.description ? `<div class="detalhe">${plano.description}</div>` : ''}
+                    ${plano.maxRooms ? `<div class="detalhe">Até ${plano.maxRooms} quartos</div>` : ''}
+                    ${plano.maxBeds ? `<div class="detalhe">Até ${plano.maxBeds} camas</div>` : ''}
+                    <div class="detalhe">Suporte especializado</div>
+                    <div class="detalhe">Integração com Airbnb</div>
+                    <div class="detalhe">Relatórios avançados</div>
+                </div>
+            </div>
+        `).join('');
+        
+        // Adicionar eventos de clique
+        document.querySelectorAll('.plano').forEach(card => {
+            card.addEventListener('click', () => {
+                if (cardSelecionado) {
+                    cardSelecionado.classList.remove('selecionado');
                 }
-            }
-        };
+                card.classList.add('selecionado');
+                cardSelecionado = card;
+                planoSelecionado = {
+                    id: parseInt(card.getAttribute('data-plan-id')),
+                    name: card.getAttribute('data-plan-name')
+                };
+                esconderErro();
+            });
+        });
+    }
 
-        try {
-            const tokenResponse = await mp.createCardToken(cardData);
-            if (tokenResponse && tokenResponse.id) {
-                const token = tokenResponse.id;
-                document.getElementById('cardToken').value = token;
-                showResult('tokenResult', { token: token, message: 'Token gerado com sucesso!' });
-            } else {
-                throw new Error('Falha ao gerar token: resposta inválida');
-            }
-        } catch (error) {
-            console.error(error);
-            let errorMsg = error.message;
-            if (error.cause && error.cause.message) errorMsg = error.cause.message;
-            showResult('tokenResult', { message: 'Erro ao gerar token: ' + errorMsg }, true);
+    // Formatar nome do plano para exibição
+    function formatarNomePlano(nome) {
+        const nomes = {
+            'BASIC_MONTHLY': '📌 Básico',
+            'PRO_MONTHLY': '🚀 Profissional',
+            'BASIC_QUARTERLY': '📌 Trimestral',
+            'PRO_ANNUAL': '⭐ Anual',
+            'BASICO_11': '📌 Básico',
+            'MEDIO_21': '🚀 Médio',
+            'AVANCADO_50': '⭐ Avançado'
+        };
+        return nomes[nome] || nome.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+    }
+
+    // Mostrar mensagem de erro
+    function mostrarErro(msg) {
+        const erroDiv = document.getElementById('mensagemErro');
+        erroDiv.textContent = msg;
+        erroDiv.style.display = 'block';
+        setTimeout(() => {
+            erroDiv.style.display = 'none';
+        }, 5000);
+    }
+
+    function esconderErro() {
+        document.getElementById('mensagemErro').style.display = 'none';
+    }
+
+    // Controle de estado do botão
+    function setCarregando(ativo) {
+        const btn = document.getElementById('btnAssinar');
+        if (ativo) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="carregando"></span> Criando assinatura...';
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = 'Assinar plano selecionado';
         }
-    });
+    }
+
+    // Validar formulário
+    function validarFormulario() {
+        if (!planoSelecionado) {
+            mostrarErro('❌ Selecione um plano primeiro.');
+            return false;
+        }
+        
+        const nome = document.getElementById('nome').value.trim();
+        if (nome.length < 3) {
+            mostrarErro('❌ Informe seu nome completo (mínimo 3 letras).');
+            return false;
+        }
+        
+        const email = document.getElementById('email').value.trim();
+        const emailRegex = /^[^\s@]+@([^\s@]+\.)+[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            mostrarErro('❌ Digite um e-mail válido (ex: nome@dominio.com).');
+            return false;
+        }
+        
+        esconderErro();
+        return true;
+    }
 
     // Criar assinatura
-    document.getElementById('createSubForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const data = {
-            planId: parseInt(document.getElementById('subPlanId').value),
-            payerEmail: document.getElementById('payerEmail').value,
-            cardToken: document.getElementById('cardToken').value
+    async function criarAssinatura() {
+        if (!validarFormulario()) return;
+
+        const nome = document.getElementById('nome').value.trim();
+        const email = document.getElementById('email').value.trim();
+        const observacao = document.getElementById('observacao').value.trim();
+        
+        const payload = {
+            planId: planoSelecionado.id,
+            payerName: nome,
+            payerEmail: email,
+            reason: observacao || `Assinatura ${planoSelecionado.name} - ${nome}`
         };
+
+        console.log('Enviando payload:', payload);
+        setCarregando(true);
+
         try {
-            const response = await fetch(`${API_BASE}/subscriptions/create-sub`, {
+            const response = await fetch(API_SUBSCRIPTION, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(payload)
             });
-            if (!response.ok) throw new Error(`Erro ${response.status}: ${await response.text()}`);
-            const result = await response.json();
-            showResult('createSubResult', result);
-        } catch (error) {
-            showResult('createSubResult', { message: error.message }, true);
-        }
-    });
 
-    // Cancelar assinatura
-    document.getElementById('cancelSubForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const subId = document.getElementById('subIdToCancel').value;
-        try {
-            const response = await fetch(`${API_BASE}/subscriptions/delete/${subId}`, { method: 'DELETE' });
-            if (response.status === 204) {
-                showResult('cancelSubResult', { message: 'Assinatura cancelada com sucesso!' });
-            } else {
-                const errorText = await response.text();
-                throw new Error(`Erro ${response.status}: ${errorText}`);
+            if (!response.ok) {
+                let errorMsg = `Erro ${response.status}`;
+                try {
+                    const errorData = await response.json();
+                    errorMsg = errorData.error || errorData.message || errorMsg;
+                    console.error('Detalhes do erro:', errorData);
+                } catch(e) {
+                    console.error('Erro ao parsear resposta de erro:', e);
+                }
+                throw new Error(errorMsg);
             }
-        } catch (error) {
-            showResult('cancelSubResult', { message: error.message }, true);
+
+            const data = await response.json();
+            console.log('Resposta do servidor:', data);
+            
+            if (data.initPoint) {
+                // Redirecionar para o checkout do Mercado Pago
+                window.location.href = data.initPoint;
+            } else {
+                throw new Error('Link de pagamento não recebido do servidor.');
+            }
+            
+        } catch (err) {
+            console.error('Erro na criação da assinatura:', err);
+            mostrarErro(`⚠️ Falha ao criar assinatura: ${err.message}`);
+            setCarregando(false);
+        }
+    }
+
+    // ========= INICIALIZAÇÃO =========
+    document.getElementById('btnAssinar').addEventListener('click', criarAssinatura);
+    
+    // Enter key support
+    document.getElementById('email').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            criarAssinatura();
         }
     });
-
-    // Buscar assinatura
-    document.getElementById('getSubForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const subId = document.getElementById('subIdToGet').value;
-        try {
-            const response = await fetch(`${API_BASE}/subscriptions/${subId}`);
-            if (!response.ok) throw new Error(`Erro ${response.status}: ${await response.text()}`);
-            const result = await response.json();
-            showResult('getSubResult', result);
-        } catch (error) {
-            showResult('getSubResult', { message: error.message }, true);
-        }
-    });
-
-    loadPlans();
+    
+    // Carregar planos ao iniciar
+    carregarPlanos();
+    
+    // Recarregar planos a cada 30 segundos (opcional)
+    setInterval(() => {
+        carregarPlanos();
+    }, 30000);
 </script>
 </body>
 </html>

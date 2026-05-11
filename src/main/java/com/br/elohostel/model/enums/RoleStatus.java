@@ -3,7 +3,8 @@ package com.br.elohostel.model.enums;
 public enum RoleStatus {
 
     ADMIN(1),
-    BASIC(2);
+    BASIC(2),
+    MASTER(3);
 
     private final int code;
 

@@ -2,11 +2,11 @@
     --orange: #eb0000;
     --orange-light: #960000;
     --orange-dark: #720000;
-    --green: #90EE90;
-    --green-light: #A8E6A8;
+    --green: #28a745;
+    --green-light: #90EE90;
     --green-dark: #7CCD7C;
     --gray-light: #f4f4f4;
-    --gray: #000000;
+    --gray: #333333;
     --white: #fff;
     --shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
@@ -78,7 +78,7 @@ body {
     vertical-align: middle;
 }
 
-/* Estilos para o dropdown - SOLUÇÃO SIMPLES COM ÁREA DE HOVER AUMENTADA */
+/* Estilos para o dropdown */
 .dropdown {
     position: relative;
     display: inline-block;
@@ -95,9 +95,8 @@ body {
     overflow: hidden;
     top: 100%;
     left: 0;
-    /* Adiciona uma borda transparente ao redor para aumentar área de hover */
     border: 8px solid transparent;
-    margin: -8px; /* Compensa a borda */
+    margin: -8px;
 }
 
 .dropdown-content a {
@@ -182,21 +181,21 @@ body {
 }
 
 .btn-primary {
-    background-color: #ffae00;
+    background-color: #007bff;
     color: white;
 }
 
 .btn-primary:hover {
-    background-color: #b87d00;
+    background-color: #0056b3;
 }
 
 .btn-success {
-    background-color: #ffae00;
-    color: #ffffff;
+    background-color: #28a745;
+    color: white;
 }
 
 .btn-success:hover {
-    background-color: #b87d00;
+    background-color: #1e7e34;
 }
 
 .btn-danger {
@@ -269,7 +268,7 @@ body {
 
 .badge-vague {
     background-color: var(--green);
-    color: #333;
+    color: white;
 }
 
 .badge-busy {
@@ -288,8 +287,8 @@ body {
 }
 
 .badge-confirmed {
-    background-color: var(--green);
-    color: #333;
+    background-color: #28a745;
+    color: white;
 }
 
 .badge-cancelled {
@@ -298,7 +297,7 @@ body {
 }
 
 .badge-checked-in {
-    background-color: var(--orange);
+    background-color: #17a2b8;
     color: white;
 }
 
@@ -315,9 +314,9 @@ body {
 }
 
 .alert-success {
-    background-color: var(--green-light);
-    border: 1px solid var(--green);
-    color: #2d5016;
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
 }
 
 .alert-error {
@@ -438,7 +437,7 @@ body {
 }
 
 .expandable-list.collapsed {
-    max-height: 500px;
+    max-height: 300px;
 }
 
 .expandable-list.expanded {
@@ -450,6 +449,50 @@ body {
     margin-top: 1rem;
 }
 
+/* Logo container styles */
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    float: left;
+}
+
+.logo-image {
+    height: 40px;
+    width: auto;
+    max-height: 50px;
+    object-fit: contain;
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: bold;
+    display: inline-block;
+    margin: 0;
+}
+
+/* Ajuste para o container do header */
+.header .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+/* Stats row */
+.stats-row {
+    margin-bottom: 1.5rem;
+}
+
+/* Check-in/Check-out sections */
+.checkin-section {
+    border-left: 4px solid var(--green);
+}
+
+.checkout-section {
+    border-left: 4px solid var(--orange);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .nav {
@@ -458,7 +501,23 @@ body {
         text-align: center;
         width: 100%;
     }
+    .logo-container {
+        float: none;
+        justify-content: center;
+        margin-bottom: 1rem;
+    }
     
+    .logo-image {
+        height: 30px;
+    }
+    
+    .logo {
+        font-size: 1.2rem;
+    }
+    
+    .header .container {
+        flex-direction: column;
+    }
     .nav-link {
         display: inline-block;
         margin: 0.3rem;
@@ -493,15 +552,18 @@ body {
         text-align: center;
     }
 
-    /* Dropdown responsivo */
     .dropdown-content {
         position: fixed;
         left: 50%;
         transform: translateX(-50%);
         min-width: 200px;
         z-index: 10000;
-        border: 4px solid transparent; /* Mantém a borda transparente no mobile */
+        border: 4px solid transparent;
         margin: -4px;
+    }
+    
+    .card-title {
+        font-size: 1.1rem;
     }
 }
 
@@ -523,7 +585,28 @@ body {
     
     .dropdown-content {
         min-width: 160px;
-        border: 3px solid transparent; /* Borda menor no mobile */
+        border: 3px solid transparent;
         margin: -3px;
+    }
+
+    .logo-image {
+        height: 25px;
+    }
+    
+    .logo {
+        font-size: 1rem;
+    }
+    
+    .logo-container {
+        gap: 10px;
+    }
+    
+    .stats-number {
+        font-size: 2rem;
+    }
+    
+    .btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
     }
 }

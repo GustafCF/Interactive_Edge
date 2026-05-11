@@ -1,9 +1,11 @@
 package com.br.elohostel.model;
 
 import java.io.Serializable;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.br.elohostel.model.enums.SubscriptionStatus;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.CascadeType;
@@ -26,6 +28,8 @@ public class Tenant implements Serializable {
     @Column(unique = true, nullable = false)
     private String tenantKey;
     private String name;
+    private SubscriptionStatus subscriptionStatus;
+    private LocalDateTime trialEndsAt;
 
     @JsonIgnore
     @OneToMany(mappedBy = "tenant", cascade = CascadeType.ALL)
@@ -65,9 +69,11 @@ public class Tenant implements Serializable {
 
     public Tenant() {}
 
-    public Tenant(String tenantKey, String name) {
+    public Tenant(String tenantKey, String name, SubscriptionStatus subscriptionStatus, LocalDateTime trialEndsAt) {
         this.tenantKey = tenantKey;
         this.name = name;
+        this.subscriptionStatus = subscriptionStatus;
+        this.trialEndsAt = trialEndsAt;
     }
 
     public Long getId() {
@@ -92,6 +98,22 @@ public class Tenant implements Serializable {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public SubscriptionStatus getSubscriptionStatus() {
+        return subscriptionStatus;
+    }
+
+    public void setSubscriptionStatus(SubscriptionStatus subscriptionStatus) {
+        this.subscriptionStatus = subscriptionStatus;
+    }
+
+    public LocalDateTime getTrialEndsAt() {
+        return trialEndsAt;
+    }
+
+    public void setTrialEndsAt(LocalDateTime trialEndsAt) {
+        this.trialEndsAt = trialEndsAt;
     }
 
     public List<User> getUser() {

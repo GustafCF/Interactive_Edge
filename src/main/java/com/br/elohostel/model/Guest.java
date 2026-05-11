@@ -27,6 +27,7 @@ public class Guest implements Serializable {
     private String rg;
     private String phone;
     private String email;
+    // private Integer cep;
 
     @JsonIgnore
     @ManyToMany

@@ -98,7 +98,6 @@ class LoginSystem {
         const token = urlParams.get('token');
         
         if (token) {
-            // Preencher o token no modal e abrir
             const resetTokenInput = document.getElementById('resetToken');
             if (resetTokenInput) {
                 resetTokenInput.value = token;
@@ -108,7 +107,6 @@ class LoginSystem {
             if (resetModal) {
                 this.openModal(resetModal);
                 
-                // Remover o token da URL para não ficar visível
                 const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
                 window.history.replaceState({}, document.title, newUrl);
             }
@@ -128,7 +126,6 @@ class LoginSystem {
             document.body.style.overflow = 'auto';
             this.clearModalErrors(modal);
             
-            // Limpar formulários
             const form = modal.querySelector('form');
             if (form) form.reset();
         }
@@ -205,7 +202,6 @@ class LoginSystem {
     }
     
     isValidPhone(phone) {
-        // Aceita formatos: (11) 99999-9999 ou 11999999999
         const re = /^\([1-9]{2}\) (?:[2-8]|9[0-9])[0-9]{3}-[0-9]{4}$|^[1-9]{2}9[0-9]{8}$/;
         return re.test(phone);
     }
@@ -230,7 +226,6 @@ class LoginSystem {
             element.style.display = 'block';
         }
         
-        // Para campos dentro de modais, o input pode não seguir o padrão de ID
         const input = document.getElementById(elementId.replace('Error', ''));
         if (input) {
             input.classList.add('error');
@@ -257,7 +252,7 @@ class LoginSystem {
             
             if (response.ok) {
                 const data = await response.json();
-                this.handleLoginSuccess(data, email);
+                await this.handleLoginSuccess(data, email);
             } else {
                 this.handleLoginError(response);
             }
@@ -285,21 +280,77 @@ class LoginSystem {
         });
     }
 
-    handleLoginSuccess(data, email) {
-        this.showAlert('Login realizado com sucesso! Redirecionando...', 'success');
+    async handleLoginSuccess(data, email) {
+        console.log('=== Login Success ===');
         
         if (data.accessToken) {
+            // Salvar token
             localStorage.setItem('jwtToken', data.accessToken);
             
-            // expiresIn vem em segundos do backend
+            // Salvar expiração do token
             const tokenExpiry = Date.now() + (data.expiresIn * 1000);
             localStorage.setItem('tokenExpiry', tokenExpiry);
+            
+            // CORREÇÃO: Salvar informações do usuário
+            localStorage.setItem('userInfo', email);
             localStorage.setItem('userEmail', email);
+            
+            console.log('Email salvo no localStorage:', email);
+            console.log('Token salvo:', data.accessToken.substring(0, 20) + '...');
+            
+            // Buscar nome do usuário do backend
+            await this.fetchUserName(email, data.accessToken);
+            
+            this.showAlert('Login realizado com sucesso! Redirecionando...', 'success');
+            
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 1500);
+        } else {
+            console.error('Token não recebido do backend');
+            this.showAlert('Erro ao realizar login. Token não recebido.', 'error');
         }
-        
-        setTimeout(() => {
-            window.location.href = '/';
-        }, 1500);
+    }
+    
+    async fetchUserName(email, token) {
+        try {
+            console.log('Buscando nome do usuário para:', email);
+            
+            const response = await fetch(`${this.userBaseUrl}/fd/em/${email}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                const userData = await response.json();
+                console.log('Dados do usuário recebidos:', userData);
+                
+                if (userData.name) {
+                    localStorage.setItem('userName', userData.name);
+                    console.log('Nome do usuário salvo:', userData.name);
+                } else {
+                    // Fallback: usar parte do email como nome
+                    const nameFromEmail = email.split('@')[0];
+                    localStorage.setItem('userName', nameFromEmail);
+                    console.log('Nome fallback salvo:', nameFromEmail);
+                }
+            } else {
+                console.error('Erro ao buscar usuário:', response.status);
+                // Fallback: usar parte do email como nome
+                const nameFromEmail = email.split('@')[0];
+                localStorage.setItem('userName', nameFromEmail);
+                console.log('Nome fallback (erro) salvo:', nameFromEmail);
+            }
+        } catch (error) {
+            console.error('Erro ao buscar nome do usuário:', error);
+            // Fallback: usar parte do email como nome
+            const nameFromEmail = email.split('@')[0];
+            localStorage.setItem('userName', nameFromEmail);
+            console.log('Nome fallback (exceção) salvo:', nameFromEmail);
+        }
     }
 
     handleLoginError(response, errorMessage = null) {
@@ -336,12 +387,11 @@ class LoginSystem {
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registrando...';
         
         try {
-            // Criando o DTO no formato esperado pelo backend (CreateUserDto)
             const createUserDto = {
                 name: name,
                 email: email,
                 password: password,
-                phone: phone || null // Se telefone for vazio, envia null
+                phone: phone || null
             };
             
             const response = await fetch(`${this.userBaseUrl}/register`, {
@@ -356,9 +406,9 @@ class LoginSystem {
                 const userData = await response.json();
                 this.showAlert('Registro realizado com sucesso! Faça login.', 'success');
                 this.closeModal(document.getElementById('registerModal'));
-                // Preencher email no formulário de login
+                
                 document.getElementById('email').value = email;
-                // Limpar campos do modal
+                
                 document.getElementById('regName').value = '';
                 document.getElementById('regEmail').value = '';
                 document.getElementById('regPassword').value = '';
@@ -369,7 +419,6 @@ class LoginSystem {
                     const error = await response.json();
                     errorMessage = error.message || errorMessage;
                     
-                    // Tratamento específico para erro de e-mail duplicado
                     if (response.status === 409 || errorMessage.toLowerCase().includes('email') || errorMessage.toLowerCase().includes('duplicate')) {
                         this.showError('regEmailError', 'E-mail já cadastrado');
                         this.showAlert('Este e-mail já está em uso.', 'error');
@@ -402,7 +451,6 @@ class LoginSystem {
     async handleForgotPassword(event) {
         event.preventDefault();
     
-        
         const email = document.getElementById('forgotEmail').value.trim();
         const submitBtn = document.getElementById('forgotSubmitBtn');
         const originalText = submitBtn.innerHTML;
@@ -422,7 +470,6 @@ class LoginSystem {
             if (response.ok) {
                 this.showAlert('E-mail de recuperação enviado! Verifique sua caixa de entrada.', 'success');
                 this.closeModal(document.getElementById('forgotPasswordModal'));
-                // Limpar campo
                 document.getElementById('forgotEmail').value = '';
             } else {
                 let errorMessage = 'Erro ao enviar e-mail de recuperação.';
@@ -430,7 +477,6 @@ class LoginSystem {
                     const error = await response.json();
                     errorMessage = error.message || errorMessage;
                 } catch (e) {
-                    // Se o backend retornar 404, trata como usuário não encontrado
                     if (response.status === 404) {
                         errorMessage = 'Usuário não encontrado.';
                     }
@@ -473,7 +519,6 @@ class LoginSystem {
             if (response.ok) {
                 this.showAlert('Senha redefinida com sucesso! Faça login com sua nova senha.', 'success');
                 this.closeModal(document.getElementById('resetPasswordModal'));
-                // Limpar campos
                 document.getElementById('resetToken').value = '';
                 document.getElementById('newPassword').value = '';
             } else {
@@ -482,7 +527,6 @@ class LoginSystem {
                     const error = await response.json();
                     errorMessage = error.message || errorMessage;
                 } catch (e) {
-                    // Se não conseguir parsear JSON, usa mensagem baseada no status
                     if (response.status === 400) {
                         errorMessage = 'Token inválido ou expirado. Solicite uma nova recuperação de senha.';
                     } else if (response.status === 404) {
@@ -504,7 +548,6 @@ class LoginSystem {
         const alertContainer = document.getElementById('alertContainer');
         if (!alertContainer) return;
         
-        // Remove alertas existentes
         const existingAlerts = alertContainer.querySelectorAll('.alert');
         existingAlerts.forEach(alert => {
             alert.style.animation = 'slideOut 0.3s ease';
@@ -531,7 +574,6 @@ class LoginSystem {
         
         alertContainer.appendChild(alert);
         
-        // Auto-remover após 5 segundos para sucesso, 8 para erros
         const timeout = type === 'success' ? 5000 : 8000;
         setTimeout(() => {
             if (alert.parentNode) {
@@ -553,7 +595,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.loginSystem = new LoginSystem();
 });
 
-// Função global para mostrar alertas (opcional)
+// Função global para mostrar alertas
 function showAlert(message, type = 'info') {
     if (window.loginSystem) {
         window.loginSystem.showAlert(message, type);

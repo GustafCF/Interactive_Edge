@@ -47,19 +47,19 @@ public class Reserve implements Serializable {
     private List<LocalDateTime> checkIn = new ArrayList<>();
     @Column(name = "check_out")
     private List<LocalDateTime> checkOut = new ArrayList<>();
-    @Column(name = "initital_value")
-    private BigDecimal initialValue;
-    @Column(name = "custom_value")
-    private BigDecimal customValue;
+    @Column(name = "daily_rate")
+    private BigDecimal dailyRate;
+    @Column(name = "custom_total_amount")
+    private BigDecimal customTotalAmount;
     
-    @Column(name = "use_custom_value")
-    private Boolean useCustomValue = false;
+    @Column(name = "use_custom_amount")
+    private Boolean useCustomAmount = false;
 
     @Column(name = "financial_processed")
     private Boolean financialProcessed = false;
     
-    @Column(name = "extra_guest_fee")
-    private BigDecimal extraGuestFee = new BigDecimal("20.00");
+    @Column(name = "extra_guest_daily_fee")
+    private BigDecimal extraGuestDailyFee = new BigDecimal("0.00");
 
     @JsonIgnore
     @OneToOne(mappedBy = "reserve")
@@ -98,16 +98,32 @@ public class Reserve implements Serializable {
         this.id = id;
     }
 
+    public BigDecimal getDailyRate() {
+        return dailyRate;
+    }
+
+    public void setDailyRate(BigDecimal dailyRate) {
+        this.dailyRate = dailyRate;
+    }
+
+    public BigDecimal getCustomTotalAmount() {
+        return customTotalAmount;
+    }
+
+    public void setCustomTotalAmount(BigDecimal customTotalAmount) {
+        this.customTotalAmount = customTotalAmount;
+    }
+
+    public BigDecimal getExtraGuestDailyFee() {
+        return extraGuestDailyFee;
+    }
+
+    public void setExtraGuestDailyFee(BigDecimal extraGuestDailyFee) {
+        this.extraGuestDailyFee = extraGuestDailyFee;
+    }
+
     public Set<LocalDate> getReservedDays() {
         return reservedDays;
-    }
-
-    public BigDecimal getInitialValue() {
-        return initialValue;
-    }
-
-    public void setInitialValue(BigDecimal initialValue) {
-        this.initialValue = initialValue;
     }
 
     public ReserveStatus getReserveStatus() {
@@ -166,10 +182,6 @@ public class Reserve implements Serializable {
         return bedOccupation;
     }
 
-    public BigDecimal getCustomValue() {
-        return customValue;
-    }
-
     public Boolean getFinancialProcessed() {
         return financialProcessed;
     }
@@ -178,24 +190,13 @@ public class Reserve implements Serializable {
         this.financialProcessed = financialProcessed;
     }
 
-    public void setCustomValue(BigDecimal customValue) {
-        this.customValue = customValue;
+
+    public Boolean getUseCustomAmount() {
+        return useCustomAmount;
     }
 
-    public Boolean getUseCustomValue() {
-        return useCustomValue;
-    }
-
-    public void setUseCustomValue(Boolean useCustomValue) {
-        this.useCustomValue = useCustomValue;
-    }
-
-    public BigDecimal getExtraGuestFee() {
-        return extraGuestFee;
-    }
-
-    public void setExtraGuestFee(BigDecimal extraGuestFee) {
-        this.extraGuestFee = extraGuestFee;
+    public void setUseCustomAmount(Boolean useCustomAmount) {
+        this.useCustomAmount = useCustomAmount;
     }
 
     public LocalDate getCheckInDate() {
@@ -216,7 +217,6 @@ public class Reserve implements Serializable {
                 .orElse(null);
     }
 
-    // Método para obter o período formatado
     public String getFormattedPeriod() {
         LocalDate checkIn = getCheckInDate();
         LocalDate checkOut = getCheckOutDate();
@@ -228,20 +228,19 @@ public class Reserve implements Serializable {
         return checkIn.toString() + " a " + checkOut.toString();
     }
 
-    public BigDecimal calculateTotalValue() {
-        if (Boolean.TRUE.equals(useCustomValue) && customValue != null) {
-            return customValue;
+    public BigDecimal calculateTotalAmount() {
+        if (Boolean.TRUE.equals(useCustomAmount) && customTotalAmount != null) {
+            return customTotalAmount;
         }
         
-        BigDecimal baseValue = this.initialValue != null ? this.initialValue : BigDecimal.ZERO;
+        BigDecimal dailyRateValue = this.dailyRate != null ? this.dailyRate : BigDecimal.ZERO;
         int numberOfDays = this.reservedDays != null ? this.reservedDays.size() : 0;
         int extraGuests = Math.max(0, (this.guest != null ? this.guest.size() : 0) - 1);
         
-        // ✅ CORREÇÃO: Multiplicar a taxa de hóspedes extras pelo número de dias
-        BigDecimal dailyTotal = baseValue.multiply(BigDecimal.valueOf(numberOfDays));
-        BigDecimal extraFees = this.extraGuestFee.multiply(BigDecimal.valueOf(extraGuests * numberOfDays)); // Multiplica pelos dias
+        BigDecimal accommodationTotal = dailyRateValue.multiply(BigDecimal.valueOf(numberOfDays));
+        BigDecimal extraFeesTotal = this.extraGuestDailyFee.multiply(BigDecimal.valueOf(extraGuests * numberOfDays));
         
-        return dailyTotal.add(extraFees);
+        return accommodationTotal.add(extraFeesTotal);
     }
 
     public int getNumberOfDays() {
